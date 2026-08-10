@@ -75,9 +75,6 @@
     document.title = GROUP.name + " · The Group Passport";
   }
   $("#group-tagline").textContent = (typeof GROUP !== "undefined" && GROUP.tagline) || "";
-  if (typeof GROUP !== "undefined" && GROUP.repo) {
-    $("#edit-link").href = `https://github.com/${GROUP.repo}/edit/master/data/travelers.js`;
-  }
 
   /* ---------- data warnings & fresh-passport welcome ---------- */
   if (warnings.length) {
@@ -93,12 +90,7 @@
     box.hidden = false;
     const s = el("div", "starter");
     s.appendChild(el("strong", null, "🎞️ Fresh passport, blank map. "));
-    const span = el("span", null, "Scroll to ");
-    const a = el("a", null, "Update your stamps");
-    a.href = "#editor";
-    span.appendChild(a);
-    span.appendChild(document.createTextNode(", pick ➕ New member…, tap your countries, hit Save — and watch the map light up."));
-    s.appendChild(span);
+    s.appendChild(el("span", null, "Hit ➕ Add yourself, tap your countries, save — and watch the map light up."));
     box.appendChild(s);
   }
 
@@ -622,17 +614,14 @@
     try { v ? localStorage.setItem(ID_KEY, JSON.stringify(v)) : localStorage.removeItem(ID_KEY); } catch {}
   };
 
-  /* ---------- passport editor ---------- */
+  /* ---------- passport editor: modal onboarding + floating edit bar ---------- */
   const editorAPI = (function editor() {
-    const whoSel = $("#ed-who");
-    const searchRow = $("#ed-search-row");
-    const searchIn = $("#ed-search");
-    const statusEl = $("#ed-status");
-    const chipsEl = $("#ed-chips");
-    const actions = $("#ed-actions");
-    const output = $("#ed-output");
-    const outText = $("#ed-text");
     const mapSvg = $("#map");
+    const bar = $("#edit-bar");
+    const labelEl = $("#eb-label");
+    const statusEl = $("#eb-status");
+    const searchIn = $("#ed-search");
+    const saveBtn = $("#ed-save");
     const repo = (typeof GROUP !== "undefined" && GROUP.repo) || "";
     if (repo) $("#ed-open").href = `https://github.com/${repo}/edit/master/data/travelers.js`;
 
@@ -652,22 +641,12 @@
       return byName.get(q.toLowerCase()) || null;
     };
 
-    // who am I
-    const ph = el("option", null, "choose yourself…");
-    ph.value = ""; ph.disabled = true; ph.selected = true;
-    whoSel.appendChild(ph);
-    members.forEach((m, i) => {
-      const o = el("option", null, `${m.emoji} ${m.name}`);
-      o.value = String(i);
-      whoSel.appendChild(o);
-    });
-    const optNew = el("option", null, "➕ New member…");
-    optNew.value = "new";
-    whoSel.appendChild(optNew);
-
-    let working = null;      // Set of ccs being edited
+    let working = null;      // Set of ccs being edited (null = not editing)
     let baseline = new Set();
     let isNew = false;
+    let memberIdx = -1;
+    const isDirty = () =>
+      !!working && (working.size !== baseline.size || [...working].some((cc) => !baseline.has(cc)));
 
     const applyMine = () => {
       mapSvg.querySelectorAll(".mine").forEach((n) => n.classList.remove("mine"));
@@ -691,81 +670,43 @@
         n.classList.add("mine");
       }
     };
-    const renderChips = () => {
-      chipsEl.textContent = "";
-      if (!working) return;
-      for (const cc of [...working].sort((a, b) => cname(a).localeCompare(cname(b)))) {
-        const chip = el("span", baseline.has(cc) ? "chip" : "chip added");
-        chip.appendChild(el("span", null, `${flag(cc)} ${cname(cc)}`));
-        const x = el("button", null, "✕");
-        x.type = "button";
-        x.setAttribute("aria-label", `Remove ${cname(cc)}`);
-        x.addEventListener("click", () => toggle(cc));
-        chip.appendChild(x);
-        chipsEl.appendChild(chip);
-      }
-    };
     const renderStatus = (msg) => {
+      saveBtn.classList.toggle("attn", isDirty());
       if (msg != null) { statusEl.textContent = msg; return; }
       if (!working) { statusEl.textContent = ""; return; }
+      if (!working.size) { statusEl.textContent = "Tap the map to add your countries"; return; }
       const added = [...working].filter((cc) => !baseline.has(cc)).length;
       const removed = [...baseline].filter((cc) => !working.has(cc)).length;
       let delta = "";
       if (added) delta += ` · ${added} added`;
       if (removed) delta += ` · ${removed} removed`;
+      if (!added && !removed && !isNew) delta = " · all saved ✓";
       statusEl.textContent = `${working.size} ${working.size === 1 ? "country" : "countries"}${delta}`;
     };
-    /* local draft — your in-progress edits survive reloads on this device */
+    const setLabel = () => {
+      labelEl.textContent = isNew
+        ? `✍️ Adding ${$("#ed-name").value.trim() || "you"}`
+        : `✍️ ${members[memberIdx].emoji} ${members[memberIdx].name}`;
+    };
+
+    /* local draft — in-progress edits survive reloads on this device */
     const DRAFT_KEY = "group-passport-draft:" + repo;
     const newFieldIds = ["ed-name", "ed-emoji", "ed-home", "ed-camera", "ed-fav"];
     const saveDraft = () => {
       if (!working) return;
-      const dirty = working.size !== baseline.size || [...working].some((cc) => !baseline.has(cc));
       const fields = isNew ? newFieldIds.map((id) => $("#" + id).value) : null;
-      if (!dirty && !isNew) { localStorage.removeItem(DRAFT_KEY); return; }
+      if (!isDirty() && !isNew) { localStorage.removeItem(DRAFT_KEY); return; }
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ who: whoSel.value, countries: [...working], fields }));
-      } catch { /* storage full or blocked — drafts just won't persist */ }
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          who: isNew ? "new" : String(memberIdx),
+          countries: [...working],
+          fields,
+        }));
+      } catch { /* storage blocked — drafts just won't persist */ }
     };
     const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
-    const restoreDraft = () => {
-      let d = null;
-      try { d = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch {}
-      if (!d || !d.who || !Array.isArray(d.countries)) return;
-      if (d.who !== "new") {
-        const m = members[Number(d.who)];
-        if (!m) { clearDraft(); return; }
-        const saved = new Set(m.countries);
-        // draft already matches saved data (e.g. the robot committed it) — nothing to restore
-        if (d.countries.length === saved.size && d.countries.every((cc) => saved.has(cc))) { clearDraft(); return; }
-      }
-      selectWho(d.who);
-      if (d.who === "new" && d.fields) newFieldIds.forEach((id, i) => { $("#" + id).value = d.fields[i] || ""; });
-      working = new Set(d.countries.filter((cc) => COUNTRIES[cc]));
-      achieved = achievedKeys(working);
-      applyMine(); renderChips();
-      renderStatus();
-      statusEl.textContent += " · draft restored from your last visit";
-    };
 
-    /* onboarding steps: live check-off as you go */
-    const updateSteps = () => {
-      if (!working) return;
-      $("#ed-steps").hidden = false;
-      const mark = (sel, done) => {
-        const li = $(sel);
-        li.classList.toggle("done", done);
-        li.querySelector(".n").textContent = done ? "✓" : li.dataset.num;
-      };
-      mark("#step-who", !isNew || !!$("#ed-name").value.trim());
-      mark("#step-tap", working.size > 0);
-      $("#step-tap-label").textContent =
-        `Tap your countries on the map${working.size ? ` — ${working.size} so far` : ""}`;
-      const dirty = working.size !== baseline.size || [...working].some((cc) => !baseline.has(cc));
-      mark("#step-save", !isNew && working.size > 0 && !dirty);
-    };
-
-    const refresh = () => { applyMine(); renderChips(); renderStatus(); saveDraft(); updateSteps(); };
+    const refresh = () => { applyMine(); renderStatus(); saveDraft(); };
 
     /* selection effects: ripple + floating flag + brightness pop on the country */
     const fx = (cc, adding, pt) => {
@@ -849,44 +790,71 @@
       checkMilestones();
     };
 
-    const selectWho = (value) => {
-      whoSel.value = value;
+    /* enter / leave editing mode — the bar is the only editing chrome on screen */
+    const enterEdit = (value) => {
       isNew = value === "new";
-      $("#ed-newfields").hidden = !isNew;
-      const m = isNew ? null : members[Number(value)];
+      memberIdx = isNew ? -1 : Number(value);
+      const m = isNew ? null : members[memberIdx];
       baseline = new Set(m ? m.countries : []);
       working = new Set(baseline);
-      achieved = achievedKeys(working); // what you already have doesn't re-fire
-      searchRow.hidden = false;
-      actions.hidden = false;
-      $("#ed-more").hidden = false;
-      output.hidden = true;
+      achieved = achievedKeys(working);
+      bar.hidden = false;
+      document.body.classList.add("editing");
       mapSvg.classList.add("editing");
-      $("#ed-title").textContent = isNew ? "Add yourself ✍️" : `${m.emoji} ${m.name} — your stamps ✍️`;
-      $("#map-hint").textContent = isNew
-        ? "Tap countries you’ve been to — they save below."
-        : `Tap countries to update ${m.name}’s stamps — changes save below.`;
+      setLabel();
+      $("#map-hint").textContent = "Tap countries to add or remove them.";
       refresh();
     };
-    whoSel.addEventListener("change", () => selectWho(whoSel.value));
+    const exitEdit = () => {
+      if (!working) return;
+      const dirty = isDirty();
+      working = null;
+      baseline = new Set();
+      isNew = false;
+      memberIdx = -1;
+      bar.hidden = true;
+      document.body.classList.remove("editing");
+      mapSvg.classList.remove("editing");
+      $("#map-hint").textContent = "";
+      applyMine();
+      closeMenu();
+      if (dirty) showToast("📝", "Draft kept", "Your unsaved changes are safe on this device — come back anytime.");
+    };
+    $("#eb-done").addEventListener("click", exitEdit);
+
     mapSvg.addEventListener("click", (e) => {
       if (!working) return;
       const t = e.target.closest("[data-cc]");
       if (t) toggle(t.dataset.cc, { x: e.clientX, y: e.clientY });
     });
     const addFromSearch = () => {
-      const cc = resolveCountry(searchIn.value);
+      if (!working) return;
+      const q = searchIn.value;
+      const cc = resolveCountry(q);
       if (!cc) {
-        renderStatus(`Hmm, “${searchIn.value.trim()}” isn’t focusing — try the full country name.`);
+        if (q.trim()) renderStatus(`“${q.trim()}” isn’t focusing — try the full country name.`);
         return;
       }
       searchIn.value = "";
       if (working.has(cc)) { renderStatus(`${cname(cc)} is already in your list.`); return; }
       toggle(cc);
     };
-    $("#ed-add").addEventListener("click", addFromSearch);
     searchIn.addEventListener("keydown", (e) => {
       if (e.key === "Enter") { e.preventDefault(); addFromSearch(); }
+    });
+    searchIn.addEventListener("change", addFromSearch);
+
+    /* the ⋯ menu */
+    const menu = $("#eb-menu");
+    const menuBtn = $("#eb-menu-btn");
+    const closeMenu = () => { menu.hidden = true; menuBtn.setAttribute("aria-expanded", "false"); };
+    menuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      menuBtn.setAttribute("aria-expanded", String(!menu.hidden));
+    });
+    document.addEventListener("click", (e) => {
+      if (!menu.hidden && !e.target.closest(".eb-menu-wrap")) closeMenu();
     });
 
     // serialize the whole data file back out
@@ -894,10 +862,9 @@
     const HEADER =
 `// ✈️  THE GROUP PASSPORT — add yourself here!
 //
-// Easiest way: use the “Update your stamps ✍️” editor on the page itself —
-// pick yourself (or “New member”), tap countries on the map, hit Copy, and
-// paste the result over this whole file. This header and formatting are
-// regenerated for you.
+// Easiest way: use the site itself — “Add yourself”, tap countries on the
+// map, hit Save, and a robot commits it for you. This header and formatting
+// are regenerated automatically.
 //
 // Editing by hand also works: countries are two-letter ISO 3166-1 codes,
 // the same letters as .fr / .jp internet domains. Typos are flagged in a
@@ -929,7 +896,7 @@
           countries: mine,
         };
       }
-      const m = members[Number(whoSel.value)];
+      const m = members[memberIdx];
       return { name: m.name, emoji: m.emoji, home: m.home, camera: m.camera, favorite: m.favorite, countries: mine };
     };
     // apply my edit onto a traveler list (page-load data, or freshly fetched from GitHub)
@@ -949,27 +916,24 @@
       return cleaned;
     };
     const fileText = () => serialize(mergeInto(members));
+    const fileDlg = $("#file-dialog");
     const showOutput = (text) => {
-      outText.value = text;
-      output.hidden = false;
-      output.open = true;
+      $("#ed-text").value = text;
+      if (fileDlg.showModal) fileDlg.showModal();
     };
+    $("#file-close").addEventListener("click", () => fileDlg.close());
     $("#ed-copy").addEventListener("click", () => {
+      closeMenu();
       const text = fileText();
-      outText.value = text;
-      output.hidden = false;
-      const done = () => renderStatus("Copied ✓ — now paste it over the whole file on GitHub.");
+      const done = () => renderStatus("Copied ✓ — paste it over data/travelers.js on GitHub.");
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(done, () => {
-          showOutput(text);
-          renderStatus("Clipboard blocked — copy it from the box below.");
-        });
+        navigator.clipboard.writeText(text).then(done, () => showOutput(text));
       } else {
         showOutput(text);
-        renderStatus("Copy it from the box below.");
       }
     });
     $("#ed-download").addEventListener("click", () => {
+      closeMenu();
       const blob = new Blob([fileText()], { type: "text/javascript" });
       const a = el("a");
       a.href = URL.createObjectURL(blob);
@@ -979,6 +943,7 @@
       renderStatus("Downloaded — replace data/travelers.js with it.");
     });
     $("#ed-reset").addEventListener("click", () => {
+      closeMenu();
       if (!working) return;
       working = new Set(baseline);
       achieved = achievedKeys(working);
@@ -987,19 +952,20 @@
       renderStatus("Back to the last saved version.");
     });
 
-    /* one-tap saving: a fine-grained GitHub token, stored only in this browser */
+    /* instant saves: a fine-grained GitHub token, stored only in this browser */
     const TOKEN_KEY = "group-passport-token";
     const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } };
-    const saveBtn = $("#ed-save");
-    const connectBtn = $("#ed-connect");
-    const tokenPanel = $("#ed-token-panel");
+    const tokenDlg = $("#token-dialog");
     const updateAuthUI = () => {
       const has = !!getToken();
-      saveBtn.hidden = false;
-      connectBtn.textContent = has ? "🔗 GitHub connected (instant saves)" : "⚡ Instant saves: connect GitHub…";
+      $("#ed-connect").textContent = has ? "🔗 GitHub connected — manage…" : "⚡ Instant saves: connect GitHub…";
       $("#ed-token-remove").hidden = !has;
     };
-    connectBtn.addEventListener("click", () => { tokenPanel.hidden = !tokenPanel.hidden; });
+    $("#ed-connect").addEventListener("click", () => {
+      closeMenu();
+      if (tokenDlg.showModal) tokenDlg.showModal();
+    });
+    $("#token-close").addEventListener("click", () => tokenDlg.close());
     $("#ed-token-save").addEventListener("click", () => {
       const t = $("#ed-token").value.trim();
       if (!t) return;
@@ -1008,15 +974,15 @@
         return;
       }
       $("#ed-token").value = "";
-      tokenPanel.hidden = true;
+      tokenDlg.close();
       updateAuthUI();
-      renderStatus("GitHub connected on this device — 💾 Save to GitHub is live.");
+      renderStatus("GitHub connected — saves are instant now ⚡");
     });
     $("#ed-token-remove").addEventListener("click", () => {
       try { localStorage.removeItem(TOKEN_KEY); } catch {}
-      tokenPanel.hidden = true;
+      tokenDlg.close();
       updateAuthUI();
-      renderStatus("Disconnected — back to copy & paste.");
+      renderStatus("Disconnected — saves go via a GitHub issue again.");
     });
 
     const b64encode = (str) => {
@@ -1031,7 +997,6 @@
     const ghSave = async () => {
       if (!working) return;
       const token = getToken();
-      if (!token) { tokenPanel.hidden = false; return; }
       if (!repo) { renderStatus("Set GROUP.repo in data/travelers.js to enable saving."); return; }
       saveBtn.disabled = true;
       renderStatus("Saving to GitHub…");
@@ -1039,7 +1004,7 @@
       const path = `https://api.github.com/repos/${repo}/contents/data/travelers.js`;
       try {
         const rRepo = await fetch(`https://api.github.com/repos/${repo}`, { headers: H });
-        if (rRepo.status === 401) throw new Error("GitHub didn’t accept the token — disconnect and reconnect with a fresh one.");
+        if (rRepo.status === 401) throw new Error("GitHub didn’t accept the token — reconnect with a fresh one (⋯ menu).");
         if (!rRepo.ok) throw new Error(`Couldn’t reach ${repo} — does the token have access to it?`);
         const branch = (await rRepo.json()).default_branch;
         const attempt = async () => {
@@ -1070,9 +1035,7 @@
         clearDraft();
         baseline = new Set(working);
         setIdentity({ type: "member", name: myEntry().name });
-        renderChips();
-        renderStatus("Saved ✓");
-        updateSteps();
+        renderStatus("Saved ✓ — live in about a minute");
         showToast("💾", "Saved to GitHub", "Your stamps are committed — the live site updates itself in about a minute.");
       } catch (e) {
         renderStatus(String((e && e.message) || e));
@@ -1091,7 +1054,7 @@
         "about a minute later.\n\n```json\n" + JSON.stringify(me, null, 2) + "\n```\n";
       const url = `https://github.com/${repo}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(bodyText)}`;
       const w = window.open(url, "_blank", "noopener");
-      statusEl.textContent = "One more tap: press “Submit new issue” in the tab that opened — a robot does the rest. ";
+      statusEl.textContent = "One more tap: press “Submit new issue” in the tab that opened. ";
       if (!w) {
         const a = el("a", null, "Open GitHub to finish saving ↗");
         a.href = url;
@@ -1102,7 +1065,9 @@
     };
     saveBtn.addEventListener("click", () => (getToken() ? ghSave() : ghIssueSave()));
 
-    newFieldIds.forEach((id) => $("#" + id).addEventListener("input", () => { saveDraft(); updateSteps(); }));
+    /* profile fields (inside the who-dialog) */
+    newFieldIds.forEach((id) => $("#" + id).addEventListener("input", saveDraft));
+    $("#ed-name").addEventListener("input", () => { if (working && isNew) setLabel(); });
     const emojiRow = $("#emoji-row");
     for (const e of ["📷", "🎞️", "🏔️", "🌊", "🏜️", "🦁", "🌸", "🛩️", "🌋", "⛺", "🧭", "🌅"]) {
       const b = el("button", "emoji-btn", e);
@@ -1117,19 +1082,48 @@
       emojiRow.appendChild(b);
     }
     updateAuthUI();
-    restoreDraft();
+
+    /* restore an unsaved draft from the last visit */
+    (function restoreDraft() {
+      let d = null;
+      try { d = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch {}
+      if (!d || !d.who || !Array.isArray(d.countries)) return;
+      if (d.who !== "new") {
+        const m = members[Number(d.who)];
+        if (!m) { clearDraft(); return; }
+        const saved = new Set(m.countries);
+        if (d.countries.length === saved.size && d.countries.every((cc) => saved.has(cc))) { clearDraft(); return; }
+      }
+      if (d.who === "new" && d.fields) newFieldIds.forEach((id, i) => { $("#" + id).value = d.fields[i] || ""; });
+      enterEdit(d.who);
+      working = new Set(d.countries.filter((cc) => COUNTRIES[cc]));
+      achieved = achievedKeys(working);
+      refresh();
+      statusEl.textContent += " · draft restored";
+    })();
+
     return {
-      selectWho,
-      hasSelection: () => whoSel.value !== "",
+      enterEdit,
+      exitEdit,
+      isEditing: () => !!working,
       focusName: () => $("#ed-name").focus(),
     };
   })();
 
-  /* ---------- identity prompt: ask on open unless we silently know you ---------- */
+  /* ---------- identity: ask on open unless we silently know you ---------- */
   (function identity() {
     const dlg = $("#who-dialog");
     if (!dlg || !dlg.showModal) return;
     if (typeof GROUP !== "undefined" && GROUP.name) $("#who-kicker").textContent = `📸 ${GROUP.name}`;
+    const stepPick = $("#who-step-pick");
+    const stepProfile = $("#who-step-profile");
+    const showStep = (which) => {
+      stepPick.hidden = which !== "pick";
+      stepProfile.hidden = which !== "profile";
+    };
+
+    const scrollToMap = () =>
+      document.querySelector(".map-card").scrollIntoView({ behavior: "smooth", block: "start" });
 
     const applyIdentityUI = (idx) => {
       const m = members[idx];
@@ -1137,17 +1131,23 @@
       chip.hidden = false;
       chip.textContent = "";
       chip.appendChild(el("span", null, `📷 You’re ${m.emoji} ${m.name}`));
+      const edit = el("button", "id-switch", "✏️ update my stamps");
+      edit.type = "button";
+      edit.addEventListener("click", () => {
+        if (!editorAPI.isEditing()) editorAPI.enterEdit(String(idx));
+        scrollToMap();
+      });
+      chip.appendChild(edit);
       const sw = el("button", "id-switch", "not you?");
       sw.type = "button";
-      sw.addEventListener("click", () => { setIdentity(null); showWhoDialog(); });
+      sw.addEventListener("click", () => { setIdentity(null); editorAPI.exitEdit(); showWhoDialog(); });
       chip.appendChild(sw);
-      // pre-arm the editor so tapping the map just works (unless a draft already did)
-      if (!editorAPI.hasSelection()) editorAPI.selectWho(String(idx));
       const row = [...document.querySelectorAll(".lb-name")].find((n) => n.textContent.includes(m.name));
       if (row && !row.querySelector(".you-badge")) row.appendChild(el("span", "you-badge", "· you"));
     };
 
     const showWhoDialog = () => {
+      showStep("pick");
       const grid = $("#who-members");
       grid.textContent = "";
       members.forEach((m, i) => {
@@ -1159,6 +1159,8 @@
           setIdentity({ type: "member", name: m.name });
           dlg.close();
           applyIdentityUI(i);
+          editorAPI.enterEdit(String(i));
+          scrollToMap();
         });
         grid.appendChild(b);
       });
@@ -1169,20 +1171,30 @@
       dlg.showModal();
     };
 
-    $("#who-new").addEventListener("click", () => {
+    $("#who-new").addEventListener("click", () => showStep("profile"));
+    $("#profile-back").addEventListener("click", () => showStep("pick"));
+    $("#profile-go").addEventListener("click", () => {
+      const nameIn = $("#ed-name");
+      if (!nameIn.value.trim()) {
+        nameIn.classList.add("invalid");
+        nameIn.focus();
+        return;
+      }
+      nameIn.classList.remove("invalid");
       dlg.close();
-      editorAPI.selectWho("new");
-      $("#editor").scrollIntoView({ behavior: "smooth", block: "start" });
-      setTimeout(() => editorAPI.focusName(), 450);
+      editorAPI.enterEdit("new");
+      scrollToMap();
     });
+    $("#ed-name").addEventListener("input", (e) => e.target.classList.remove("invalid"));
     $("#who-guest").addEventListener("click", () => {
       setIdentity({ type: "guest" });
       dlg.close();
     });
+    $("#join-cta").addEventListener("click", showWhoDialog);
 
     const id = getIdentity();
     const idx = id && id.type === "member" ? members.findIndex((m) => m.name === id.name) : -1;
-    if (idx >= 0) applyIdentityUI(idx);           // silently known — no prompt
+    if (idx >= 0) applyIdentityUI(idx);           // silently known — clean page, edit is one tap away
     else if (!id || id.type !== "guest") showWhoDialog(); // unknown (or stale member) — ask
     // guests are remembered too: never nag them again
   })();

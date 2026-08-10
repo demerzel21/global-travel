@@ -10,14 +10,14 @@ for free on GitHub Pages, and adding yourself is a one-file edit.
 
 ## ✨ Add yourself (no code needed)
 
-The page has a built-in editor — **Update your stamps ✍️**, right under the map:
+The page asks who you are when it opens (and silently remembers you after):
 
-1. Pick yourself from the dropdown, or **➕ New member…** and fill in your
-   name, emoji, and camera.
-2. **Tap countries on the map** to add or remove them (or type a country name
-   in the search box — that's also how you add countries too small to tap,
-   like Singapore). Your selection glows with an orange outline, and your
-   in-progress edits auto-save as a draft on your device.
+1. Pick yourself — or **➕ I'm new — add me**, which sets up your profile
+   (name, emoji, camera) right in the dialog.
+2. **Tap countries on the map** to add or remove them; a floating bar at the
+   bottom shows your count and changes, with a search box for countries too
+   small to tap (Singapore, Malta…). Your selection glows with an orange
+   outline, and in-progress edits auto-save as a draft on your device.
 3. Save it — three tiers, least friction first:
    - **Default (any GitHub login, zero setup):** hit **💾 Save to GitHub** —
      it opens a pre-filled GitHub issue; press *Submit new issue* and a

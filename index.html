@@ -19,13 +19,37 @@
   </header>
 
   <dialog id="who-dialog" aria-labelledby="who-title">
-    <p class="kicker" id="who-kicker">📸 The group passport</p>
-    <h2 id="who-title">Who's behind the camera?</h2>
-    <p class="sub" id="who-sub"></p>
-    <div id="who-members" class="who-grid"></div>
-    <div class="who-alt">
-      <button id="who-new" class="btn primary" type="button">➕ I'm new — add me</button>
-      <button id="who-guest" class="btn" type="button">👀 Just looking</button>
+    <div id="who-step-pick">
+      <p class="kicker" id="who-kicker">📸 The group passport</p>
+      <h2 id="who-title">Who's behind the camera?</h2>
+      <p class="sub" id="who-sub"></p>
+      <div id="who-members" class="who-grid"></div>
+      <div class="who-alt">
+        <button id="who-new" class="btn primary" type="button">➕ I'm new — add me</button>
+        <button id="who-guest" class="btn" type="button">👀 Just looking</button>
+      </div>
+    </div>
+    <div id="who-step-profile" hidden>
+      <p class="kicker">📸 New member</p>
+      <h2>Set up your polaroid</h2>
+      <p class="sub">Only the name is required — the rest makes your card shine.</p>
+      <div class="ed-new">
+        <label class="f"><span>Your name · required</span>
+          <input id="ed-name" type="text" placeholder="e.g. Felix" autocomplete="off" /></label>
+        <label class="f"><span>Home country</span>
+          <input id="ed-home" type="text" list="country-list" placeholder="United States" autocomplete="off" /></label>
+        <label class="f"><span>Your camera</span>
+          <input id="ed-camera" type="text" placeholder="Sony A7 IV" autocomplete="off" /></label>
+        <label class="f"><span>Favorite country to shoot</span>
+          <input id="ed-fav" type="text" list="country-list" placeholder="Japan" autocomplete="off" /></label>
+        <label class="f"><span>Your emoji — your avatar</span>
+          <input id="ed-emoji" type="text" maxlength="8" placeholder="📷" autocomplete="off" /></label>
+        <div class="emoji-row" id="emoji-row" role="group" aria-label="Quick emoji picks"></div>
+      </div>
+      <div class="who-alt">
+        <button id="profile-back" class="btn" type="button">← Back</button>
+        <button id="profile-go" class="btn primary" type="button">Now tap your countries →</button>
+      </div>
     </div>
   </dialog>
 
@@ -47,77 +71,6 @@
       <div id="map-legend" class="map-legend" aria-label="Map legend"></div>
     </section>
 
-    <section class="card editor-card" id="editor">
-      <div class="card-head">
-        <h2 id="ed-title">Update your stamps ✍️</h2>
-        <p class="sub">Pick who you are, then tap countries on the map above — or search them here —
-          to add and remove. Hit 💾 Save when you're done and a robot commits it for you. No code needed.</p>
-      </div>
-      <ol id="ed-steps" class="ed-steps" hidden>
-        <li id="step-who" data-num="1"><span class="n">1</span><span>Say who you are</span></li>
-        <li id="step-tap" data-num="2"><span class="n">2</span><span id="step-tap-label">Tap your countries on the map</span></li>
-        <li id="step-save" data-num="3"><span class="n">3</span><span>Hit 💾 Save</span></li>
-      </ol>
-      <div class="ed-row">
-        <label class="ed-label" for="ed-who">I am</label>
-        <select id="ed-who"></select>
-      </div>
-      <div id="ed-newfields" class="ed-new" hidden>
-        <label class="f"><span>Your name · required</span>
-          <input id="ed-name" type="text" placeholder="e.g. Felix" autocomplete="off" /></label>
-        <label class="f"><span>Home country</span>
-          <input id="ed-home" type="text" list="country-list" placeholder="United States" autocomplete="off" /></label>
-        <label class="f"><span>Your camera</span>
-          <input id="ed-camera" type="text" placeholder="Sony A7 IV" autocomplete="off" /></label>
-        <label class="f"><span>Favorite country to shoot</span>
-          <input id="ed-fav" type="text" list="country-list" placeholder="Japan" autocomplete="off" /></label>
-        <label class="f"><span>Your emoji — your avatar on the map</span>
-          <input id="ed-emoji" type="text" maxlength="8" placeholder="📷" autocomplete="off" /></label>
-        <div class="emoji-row" id="emoji-row" role="group" aria-label="Quick emoji picks"></div>
-      </div>
-      <div class="ed-row" id="ed-search-row" hidden>
-        <input id="ed-search" type="text" list="country-list" placeholder="Type a country to add…" />
-        <datalist id="country-list"></datalist>
-        <button id="ed-add" class="btn" type="button">Add</button>
-        <span id="ed-status" class="ed-status"></span>
-      </div>
-      <div id="ed-chips" class="chips"></div>
-      <div class="ed-actions" id="ed-actions" hidden>
-        <button id="ed-save" class="btn primary" type="button">💾 Save to GitHub</button>
-        <button id="ed-connect" class="btn" type="button">⚡ Instant saves: connect GitHub…</button>
-        <button id="ed-reset" class="btn" type="button">↩️ Reset</button>
-      </div>
-      <details id="ed-more" class="ed-more" hidden>
-        <summary>More ways to save</summary>
-        <div class="ed-actions">
-          <button id="ed-copy" class="btn" type="button">📋 Copy updated travelers.js</button>
-          <a id="ed-open" class="btn" href="#" target="_blank" rel="noopener">Open the file on GitHub ↗</a>
-          <button id="ed-download" class="btn" type="button">⬇️ Download</button>
-        </div>
-      </details>
-      <div id="ed-token-panel" class="ed-token" hidden>
-        <p><strong>Optional power-up:</strong> 💾 Save already works with just a GitHub login
-          (it opens a pre-filled issue — one more tap). Connecting a token makes saves
-          instant, with no extra tap. One-time setup, about a minute:</p>
-        <ol>
-          <li><a id="ed-token-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a fine-grained GitHub token ↗</a></li>
-          <li>Repository access → <em>Only select repositories</em> → pick this repo.</li>
-          <li>Permissions → Repository permissions → <em>Contents</em> → <strong>Read and write</strong>. Generate.</li>
-          <li>Paste it here:</li>
-        </ol>
-        <div class="ed-row">
-          <input id="ed-token" type="password" placeholder="github_pat_…" autocomplete="off" />
-          <button id="ed-token-save" class="btn primary" type="button">Connect</button>
-          <button id="ed-token-remove" class="btn" type="button" hidden>Disconnect</button>
-        </div>
-        <p class="sub">The token is stored only in this browser on this device — it never
-          touches the repo or leaves your machine except to talk to GitHub directly.</p>
-      </div>
-      <details id="ed-output" class="ed-output" hidden>
-        <summary>Show the generated file</summary>
-        <textarea id="ed-text" readonly spellcheck="false" aria-label="Generated travelers.js contents"></textarea>
-      </details>
-    </section>
 
     <div class="grid-2">
       <section class="card">
@@ -184,32 +137,68 @@
       <div id="table" class="table-scroll"></div>
     </details>
 
-    <section class="card join-card">
-      <div class="card-head">
-        <h2>Join the group photo 🙋</h2>
+    <section class="card join-card" id="join">
+      <div class="join-flex">
+        <div>
+          <h2>Join the group photo 🙋</h2>
+          <p class="sub">Takes a minute — tap your countries on the map, and any GitHub
+            login lets you save. Updates land as ordinary commits.</p>
+        </div>
+        <button id="join-cta" class="btn primary" type="button">➕ Add yourself</button>
       </div>
-      <ol class="join-steps">
-        <li>Scroll to <a href="#editor"><strong>Update your stamps</strong></a>, pick yourself —
-          or <strong>➕ New member…</strong> — and tap countries on the map (or search them)
-          to add and remove. Your edits auto-save as a draft on this device.</li>
-        <li>Hit <strong>💾 Save to GitHub</strong> and press <em>Submit new issue</em> on the
-          page that opens — a robot commits it, closes the issue, and the site updates itself.
-          Any GitHub login works; no repo access or setup needed.</li>
-        <li>Optional: <strong>⚡ connect GitHub</strong> once for instant, no-extra-tap saves —
-          or <strong>📋 copy</strong> the file and paste it over
-          <a id="edit-link" href="#" rel="noopener">the original on GitHub</a> if you'd
-          rather not use GitHub at all (send it to someone who does).</li>
-      </ol>
-      <p class="sub">Prefer editing by hand? The file is plain JavaScript and country codes are
-        the same two letters as internet domains (<code>FR</code>, <code>JP</code>,
-        <code>BR</code>…) — the full list is in the table above, and typos get flagged
-        at the top of the page.</p>
     </section>
   </main>
 
   <footer class="site-foot">
     <p id="foot-line"></p>
   </footer>
+
+  <div id="edit-bar" class="edit-bar" hidden>
+    <div class="eb-info">
+      <strong id="eb-label">✍️ Editing</strong>
+      <span id="eb-status" class="eb-status"></span>
+    </div>
+    <input id="ed-search" type="text" list="country-list" placeholder="Add a country…" autocomplete="off" />
+    <datalist id="country-list"></datalist>
+    <button id="ed-save" class="btn primary" type="button">💾 Save</button>
+    <div class="eb-menu-wrap">
+      <button id="eb-menu-btn" class="btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More options">⋯</button>
+      <div id="eb-menu" class="eb-menu" hidden>
+        <button id="ed-reset" type="button">↩️ Reset my changes</button>
+        <button id="ed-connect" type="button">⚡ Instant saves: connect GitHub…</button>
+        <button id="ed-copy" type="button">📋 Copy travelers.js</button>
+        <a id="ed-open" href="#" target="_blank" rel="noopener">Open the file on GitHub ↗</a>
+        <button id="ed-download" type="button">⬇️ Download travelers.js</button>
+      </div>
+    </div>
+    <button id="eb-done" class="btn" type="button">Done</button>
+  </div>
+
+  <dialog id="token-dialog" aria-labelledby="token-title" class="mini-dialog">
+    <h2 id="token-title">⚡ Instant saves</h2>
+    <p class="sub">💾 Save already works with just a GitHub login (one extra tap on an issue).
+      Connecting a token makes saves instant. One-time setup, about a minute:</p>
+    <ol class="join-steps">
+      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a fine-grained GitHub token ↗</a></li>
+      <li>Repository access → <em>Only select repositories</em> → pick this repo.</li>
+      <li>Permissions → <em>Contents</em> → <strong>Read and write</strong>. Generate.</li>
+    </ol>
+    <div class="ed-row">
+      <input id="ed-token" type="password" placeholder="github_pat_…" autocomplete="off" />
+      <button id="ed-token-save" class="btn primary" type="button">Connect</button>
+      <button id="ed-token-remove" class="btn" type="button" hidden>Disconnect</button>
+    </div>
+    <p class="sub">The token stays in this browser only — it never touches the repo.</p>
+    <div class="who-alt"><button id="token-close" class="btn" type="button">Close</button></div>
+  </dialog>
+
+  <dialog id="file-dialog" aria-labelledby="file-title" class="mini-dialog">
+    <h2 id="file-title">📄 travelers.js</h2>
+    <p class="sub">Copy everything below and paste it over
+      <code>data/travelers.js</code> on GitHub.</p>
+    <textarea id="ed-text" readonly spellcheck="false" aria-label="Generated travelers.js contents"></textarea>
+    <div class="who-alt"><button id="file-close" class="btn" type="button">Close</button></div>
+  </dialog>
 
   <script src="assets/countries.js"></script>
   <script src="assets/world-map.js"></script>
