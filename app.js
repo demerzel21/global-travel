@@ -298,12 +298,22 @@
   }
   const gemsEl = $("#gems");
   if (gems.length) {
-    for (const cc of gems) {
+    const GEMS_SHOWN = 15;
+    gems.forEach((cc, i) => {
       const m = visitors.get(cc)[0];
-      const chip = el("span", "chip");
+      const chip = el("span", "chip" + (i >= GEMS_SHOWN ? " chip-hidden" : ""));
       chip.appendChild(el("span", null, `${flag(cc)} ${cname(cc)}`));
       chip.appendChild(el("span", "who", `· ${m.name}`));
       gemsEl.appendChild(chip);
+    });
+    if (gems.length > GEMS_SHOWN) {
+      const more = el("button", "chip chip-more", `show all ${gems.length} ▾`);
+      more.type = "button";
+      more.addEventListener("click", () => {
+        gemsEl.querySelectorAll(".chip-hidden").forEach((c) => c.classList.remove("chip-hidden"));
+        more.remove();
+      });
+      gemsEl.appendChild(more);
     }
   } else {
     gemsEl.appendChild(el("p", "empty-note", "No solo stamps — this crew travels as a pack."));
@@ -671,7 +681,9 @@
       if (!working) { statusEl.textContent = ""; return; }
       const added = [...working].filter((cc) => !baseline.has(cc)).length;
       const removed = [...baseline].filter((cc) => !working.has(cc)).length;
-      const delta = (added || removed) ? ` (+${added} −${removed} vs saved)` : "";
+      let delta = "";
+      if (added) delta += ` · ${added} added`;
+      if (removed) delta += ` · ${removed} removed`;
       statusEl.textContent = `${working.size} ${working.size === 1 ? "country" : "countries"}${delta}`;
     };
     /* local draft — your in-progress edits survive reloads on this device */
@@ -801,6 +813,7 @@
       achieved = achievedKeys(working); // what you already have doesn't re-fire
       searchRow.hidden = false;
       actions.hidden = false;
+      $("#ed-more").hidden = false;
       output.hidden = true;
       mapSvg.classList.add("editing");
       refresh();

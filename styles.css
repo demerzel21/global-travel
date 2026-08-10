@@ -322,6 +322,13 @@ select:focus-visible, .editor-card input:focus-visible, .btn:focus-visible {
 .ed-token ol { margin: 6px 0 10px; padding-left: 22px; display: grid; gap: 4px; }
 .ed-token .ed-row { margin-bottom: 6px; }
 .ed-token #ed-token { flex: 1 1 220px; min-width: 180px; }
+.ed-more { margin-top: 12px; }
+.ed-more summary { cursor: pointer; font-size: 13.5px; color: var(--ink-2); }
+.ed-more .ed-actions { margin-top: 10px; }
+.chip.chip-hidden { display: none; }
+button.chip { font: inherit; }
+.chip.chip-more { cursor: pointer; border-style: dashed; color: var(--ink-2); }
+.chip.chip-more:hover { background: var(--map-empty); }
 .ed-output { margin-top: 14px; }
 .ed-output summary { cursor: pointer; font-size: 14px; color: var(--ink-2); }
 .ed-output textarea {

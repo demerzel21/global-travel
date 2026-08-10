@@ -38,7 +38,7 @@
       <div class="card-head">
         <h2>Update your stamps ✍️</h2>
         <p class="sub">Pick who you are, then tap countries on the map above — or search them here —
-          to add and remove. When you're done, copy the file and paste it into GitHub. No code needed.</p>
+          to add and remove. Hit 💾 Save when you're done and a robot commits it for you. No code needed.</p>
       </div>
       <div class="ed-row">
         <label class="ed-label" for="ed-who">I am</label>
@@ -59,13 +59,18 @@
       </div>
       <div id="ed-chips" class="chips"></div>
       <div class="ed-actions" id="ed-actions" hidden>
-        <button id="ed-save" class="btn primary" type="button" hidden>💾 Save to GitHub</button>
-        <button id="ed-connect" class="btn" type="button">🔗 Connect GitHub for one-tap saving…</button>
-        <button id="ed-copy" class="btn" type="button">📋 Copy updated travelers.js</button>
-        <a id="ed-open" class="btn" href="#" target="_blank" rel="noopener">Open the file on GitHub ↗</a>
-        <button id="ed-download" class="btn" type="button">⬇️ Download</button>
+        <button id="ed-save" class="btn primary" type="button">💾 Save to GitHub</button>
+        <button id="ed-connect" class="btn" type="button">⚡ Instant saves: connect GitHub…</button>
         <button id="ed-reset" class="btn" type="button">↩️ Reset</button>
       </div>
+      <details id="ed-more" class="ed-more" hidden>
+        <summary>More ways to save</summary>
+        <div class="ed-actions">
+          <button id="ed-copy" class="btn" type="button">📋 Copy updated travelers.js</button>
+          <a id="ed-open" class="btn" href="#" target="_blank" rel="noopener">Open the file on GitHub ↗</a>
+          <button id="ed-download" class="btn" type="button">⬇️ Download</button>
+        </div>
+      </details>
       <div id="ed-token-panel" class="ed-token" hidden>
         <p><strong>Optional power-up:</strong> 💾 Save already works with just a GitHub login
           (it opens a pre-filled issue — one more tap). Connecting a token makes saves
