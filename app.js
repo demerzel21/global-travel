@@ -11,7 +11,7 @@
   const flag = (cc) => (COUNTRIES[cc] && COUNTRIES[cc].flag) || "🏳️";
   const cname = (cc) => (COUNTRIES[cc] && COUNTRIES[cc].name) || cc;
 
-  /* ---------- normalize traveler data ---------- */
+  /* ---------- normalize traveler data (mutable — saves update it in place) ---------- */
   const warnings = [];
   const members = TRAVELERS.map((t) => {
     const seen = new Set();
@@ -29,26 +29,10 @@
     }
     return { name: t.name, emoji: t.emoji || "📷", home: (t.home || "").toUpperCase(), camera: t.camera || "", favorite: (t.favorite || "").toUpperCase(), countries, set: seen };
   });
-  const N = members.length;
 
-  /* ---------- shared aggregates ---------- */
-  const visitors = new Map(); // cc -> array of members
-  for (const m of members)
-    for (const cc of m.countries) {
-      if (!visitors.has(cc)) visitors.set(cc, []);
-      visitors.get(cc).push(m);
-    }
-  const visited = [...visitors.keys()];
-  const counts = [...visitors.values()].map((v) => v.length);
-  const maxCount = counts.length ? Math.max(...counts) : 0;
+  /* ---------- static reference data ---------- */
   const unTotal = Object.values(COUNTRIES).filter((c) => c.un).length;
-  const unVisited = visited.filter((cc) => COUNTRIES[cc].un).length;
-  const stamps = members.reduce((s, m) => s + m.countries.length, 0);
-  const gems = visited.filter((cc) => visitors.get(cc).length === 1)
-    .sort((a, b) => cname(a).localeCompare(cname(b)));
-  const fullHouse = visited.filter((cc) => visitors.get(cc).length === N && N > 1)
-    .sort((a, b) => cname(a).localeCompare(cname(b)));
-
+  const continentsAll = ["Africa", "Asia", "Europe", "North America", "South America", "Oceania", "Antarctica"];
   // coverage scopes — continents and UN subregions — for unlocks & milestones
   const scopes = new Map(); // "continent|Europe" -> { kind, name, key, total, ccs }
   for (const [cc, c] of Object.entries(COUNTRIES)) {
@@ -69,6 +53,16 @@
     if (c && c.total === s.total) scopes.delete(key);
   }
 
+  /* ---------- identity: who this device belongs to ---------- */
+  const ID_KEY = "group-passport-identity";
+  const getIdentity = () => {
+    try { return JSON.parse(localStorage.getItem(ID_KEY)); } catch { return null; }
+  };
+  const setIdentity = (v) => {
+    try { v ? localStorage.setItem(ID_KEY, JSON.stringify(v)) : localStorage.removeItem(ID_KEY); } catch {}
+  };
+  let onSavedIdentity = null; // set by the identity module; called after a save creates you
+
   /* ---------- header ---------- */
   if (typeof GROUP !== "undefined" && GROUP.name) {
     $("#group-name").textContent = GROUP.name;
@@ -85,7 +79,7 @@
     w.appendChild(el("span", null, warnings.join(" · ")));
     box.appendChild(w);
   }
-  if (N === 0) {
+  if (members.length === 0) {
     const box = $("#data-warnings");
     box.hidden = false;
     const s = el("div", "starter");
@@ -94,63 +88,11 @@
     box.appendChild(s);
   }
 
-  /* ---------- KPI row ---------- */
-  const kpis = $("#kpis");
-  const stat = (label, value, note, hero) => {
-    const s = el("div", "stat" + (hero ? " hero" : ""));
-    s.appendChild(el("p", "label", label));
-    s.appendChild(el("p", "value", value));
-    if (note) s.appendChild(el("p", "note", note));
-    kpis.appendChild(s);
-  };
-  const pct = unTotal ? Math.round((unVisited / unTotal) * 100) : 0;
-  const continentsAll = ["Africa", "Asia", "Europe", "North America", "South America", "Oceania", "Antarctica"];
-  const contVisited = new Set(visited.map((cc) => COUNTRIES[cc].continent));
-  const top = [...members].sort((a, b) => b.countries.length - a.countries.length)[0];
-  stat("Countries in the group passport", String(visited.length),
-    `${pct}% of the world’s ${unTotal} UN countries`, true);
-  stat("Passport stamps", String(stamps), "every member-visit, added up");
-  stat("Continents", `${continentsAll.filter((c) => contVisited.has(c)).length} of 7`,
-    contVisited.has("Antarctica") ? "including Antarctica — legends 🐧" : "Antarctica still awaits 🐧");
-  if (top) stat("Most traveled", String(top.countries.length), `${top.emoji} ${top.name} leads the pack`);
-  stat("Hidden gems", String(gems.length), "countries only one of us has seen");
+  /* ---------- live view state (recomputed by renderData) ---------- */
+  let visitors = new Map(); // cc -> array of member objects, for the current view
+  let liveN = members.length;
 
-  /* ---------- choropleth bins ---------- */
-  // 1..maxCount mapped onto the 5-step validated ramp (b1 lightest … b5 deepest)
-  const binSize = maxCount > 5 ? Math.ceil(maxCount / 5) : 1;
-  const binOf = (c) => {
-    if (maxCount <= 1) return 3;
-    if (maxCount <= 5) return 1 + Math.round(((c - 1) * 4) / (maxCount - 1));
-    return Math.min(5, Math.floor((c - 1) / binSize) + 1);
-  };
-  const legend = $("#map-legend");
-  const legendKey = (swatchClassOrVar, label) => {
-    const k = el("span", "key");
-    const sw = el("span", "swatch");
-    sw.style.background = swatchClassOrVar;
-    k.appendChild(sw);
-    k.appendChild(el("span", null, label));
-    legend.appendChild(k);
-  };
-  legendKey("var(--map-empty)", "no stamps yet");
-  if (maxCount <= 5) {
-    const seenBins = new Set();
-    for (let c = 1; c <= maxCount; c++) {
-      const b = binOf(c);
-      if (seenBins.has(b)) continue;
-      seenBins.add(b);
-      legendKey(`var(--v${b})`, c === 1 ? "1 person" : `${c} people`);
-    }
-  } else {
-    for (let b = 1; b <= 5; b++) {
-      const lo = (b - 1) * binSize + 1;
-      const hi = Math.min(maxCount, b * binSize);
-      if (lo > maxCount) break;
-      legendKey(`var(--v${b})`, lo === hi ? `${lo} people` : `${lo}–${hi} people`);
-    }
-  }
-
-  /* ---------- map ---------- */
+  /* ---------- map: create geometry once, shade it on every render ---------- */
   const svg = $("#map");
   svg.setAttribute("viewBox", `0 0 ${WORLD_MAP.width} ${WORLD_MAP.height}`);
   const whoLine = (cc) => {
@@ -160,31 +102,19 @@
   for (const [cc, d] of Object.entries(WORLD_MAP.paths)) {
     const p = document.createElementNS(SVGNS, "path");
     p.setAttribute("d", d);
-    const v = visitors.get(cc);
-    p.setAttribute("class", v ? `country hit b${binOf(v.length)}` : "country");
+    p.setAttribute("class", "country");
     p.dataset.cc = cc;
-    if (v) {
-      p.setAttribute("tabindex", "0");
-      p.setAttribute("role", "img");
-      p.setAttribute("aria-label", `${cname(cc)}: ${v.length} of ${N} — ${v.map((m) => m.name).join(", ")}`);
-    }
     svg.appendChild(p);
   }
-  // countries too small for the 110m map get a dot at their centroid
-  for (const cc of visited) {
-    if (WORLD_MAP.paths[cc]) continue;
-    const meta = COUNTRIES[cc];
-    if (meta.x == null) continue;
-    const v = visitors.get(cc);
+  // countries too small for the 110m map get a dot at their centroid (hidden until visited)
+  for (const [cc, meta] of Object.entries(COUNTRIES)) {
+    if (WORLD_MAP.paths[cc] || meta.x == null) continue;
     const dot = document.createElementNS(SVGNS, "circle");
     dot.setAttribute("cx", meta.x);
     dot.setAttribute("cy", meta.y);
     dot.setAttribute("r", "4.5");
-    dot.setAttribute("class", `cdot b${binOf(v.length)}`);
+    dot.setAttribute("class", "cdot off");
     dot.dataset.cc = cc;
-    dot.setAttribute("tabindex", "0");
-    dot.setAttribute("role", "img");
-    dot.setAttribute("aria-label", `${cname(cc)}: ${v.length} of ${N} — ${v.map((m) => m.name).join(", ")}`);
     svg.appendChild(dot);
   }
 
@@ -304,7 +234,7 @@
     const v = visitors.get(cc);
     tip.appendChild(el("div", "t-name", `${flag(cc)} ${cname(cc)}`));
     if (v) {
-      tip.appendChild(el("div", "t-count", `${v.length} of ${N} have the stamp`));
+      tip.appendChild(el("div", "t-count", `${v.length} of ${liveN} have the stamp`));
       tip.appendChild(el("div", "t-who", whoLine(cc)));
     } else {
       tip.appendChild(el("div", "t-count", "No stamps yet — first one there wins 🏁"));
@@ -338,341 +268,6 @@
     placeTip(b.left + b.width / 2, b.top + b.height / 2);
   });
   svg.addEventListener("focusout", () => { tip.hidden = true; });
-
-  /* ---------- leaderboard ---------- */
-  const lb = $("#leaderboard");
-  if (!members.length) lb.appendChild(el("p", "empty-note", "Nobody on the board yet — add yourself below 👇"));
-  const lbMax = Math.max(1, ...members.map((m) => m.countries.length));
-  for (const m of [...members].sort((a, b) => b.countries.length - a.countries.length)) {
-    const row = el("div", "lb-row");
-    row.appendChild(el("span", "lb-name", `${m.emoji} ${m.name}`));
-    const track = el("div", "lb-track");
-    const bar = el("div", "lb-bar");
-    bar.style.width = `${(m.countries.length / lbMax) * 100}%`;
-    track.appendChild(bar);
-    track.appendChild(el("span", "lb-val", String(m.countries.length)));
-    row.appendChild(track);
-    lb.appendChild(row);
-  }
-
-  /* ---------- continent checklist ---------- */
-  const ct = $("#continents");
-  const unByContinent = {};
-  for (const c of Object.values(COUNTRIES))
-    if (c.un) unByContinent[c.continent] = (unByContinent[c.continent] || 0) + 1;
-  const rows = continentsAll
-    .filter((c) => c !== "Antarctica")
-    .map((c) => {
-      const total = unByContinent[c] || 0;
-      const got = visited.filter((cc) => COUNTRIES[cc].un && COUNTRIES[cc].continent === c).length;
-      return { c, got, total };
-    })
-    .sort((a, b) => b.got / b.total - a.got / a.total);
-  for (const r of rows) {
-    const done = r.got === r.total;
-    const row = el("div", "ct-row" + (done ? " done" : ""));
-    row.appendChild(el("span", null, r.c));
-    const meter = el("div", "ct-meter");
-    const fill = el("div", "ct-fill");
-    fill.style.width = `${(r.got / r.total) * 100}%`;
-    meter.appendChild(fill);
-    row.appendChild(meter);
-    row.appendChild(el("span", "ct-val", (done ? "🏆 " : "") + `${r.got} / ${r.total}`));
-    ct.appendChild(row);
-  }
-  if (contVisited.has("Antarctica")) {
-    const who = visitors.get("AQ").map((m) => m.name).join(", ");
-    ct.appendChild(el("p", "ct-extra", `🐧 And yes — Antarctica: ${who} actually made it.`));
-  }
-  const unlockedSubs = [...scopes.values()]
-    .filter((s) => s.kind === "region" && s.total >= 2 && s.ccs.every((cc) => visitors.has(cc)))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  if (unlockedSubs.length) {
-    ct.appendChild(el("p", "sub-head", "Regions unlocked 🎖️"));
-    const subWrap = el("div", "chips");
-    for (const s of unlockedSubs) {
-      const chip = el("span", "chip");
-      chip.appendChild(el("span", null, `🎖️ ${s.name}`));
-      chip.appendChild(el("span", "who", `· all ${s.total}`));
-      subWrap.appendChild(chip);
-    }
-    ct.appendChild(subWrap);
-  }
-
-  /* ---------- full-house & gems ---------- */
-  const overlap = $("#overlap");
-  if (fullHouse.length) {
-    for (const cc of fullHouse) {
-      const chip = el("span", "chip");
-      chip.appendChild(el("span", null, `${flag(cc)} ${cname(cc)}`));
-      overlap.appendChild(chip);
-    }
-  } else if (N < 2) {
-    overlap.appendChild(el("p", "empty-note",
-      "This one needs at least two members — recruit the crew!"));
-  } else {
-    overlap.appendChild(el("p", "empty-note",
-      `No country has all ${N} stamps yet — sounds like a group trip waiting to happen.`));
-  }
-  const gemsEl = $("#gems");
-  if (gems.length) {
-    const GEMS_SHOWN = 15;
-    gems.forEach((cc, i) => {
-      const m = visitors.get(cc)[0];
-      const chip = el("span", "chip" + (i >= GEMS_SHOWN ? " chip-hidden" : ""));
-      chip.appendChild(el("span", null, `${flag(cc)} ${cname(cc)}`));
-      chip.appendChild(el("span", "who", `· ${m.name}`));
-      gemsEl.appendChild(chip);
-    });
-    if (gems.length > GEMS_SHOWN) {
-      const more = el("button", "chip chip-more", `show all ${gems.length} ▾`);
-      more.type = "button";
-      more.addEventListener("click", () => {
-        gemsEl.querySelectorAll(".chip-hidden").forEach((c) => c.classList.remove("chip-hidden"));
-        more.remove();
-      });
-      gemsEl.appendChild(more);
-    }
-  } else {
-    gemsEl.appendChild(el("p", "empty-note", visited.length
-      ? "No solo stamps — this crew travels as a pack."
-      : "No stamps anywhere yet — a blank roll of film, endless possibilities."));
-  }
-
-  /* ---------- crossing paths: pairwise heatmap + fun facts ---------- */
-  const soloCount = new Map(members.map((m) => [m.name, 0]));
-  for (const cc of gems) {
-    const m = visitors.get(cc)[0];
-    soloCount.set(m.name, soloCount.get(m.name) + 1);
-  }
-  const pairStats = [];
-  for (let i = 0; i < N; i++)
-    for (let j = i + 1; j < N; j++) {
-      const a = members[i], b = members[j];
-      const shared = a.countries.filter((cc) => b.set.has(cc))
-        .sort((x, y) => cname(x).localeCompare(cname(y)));
-      const union = new Set([...a.countries, ...b.countries]).size;
-      pairStats.push({ a, b, shared, union });
-    }
-
-  if (N < 2) $("#pairs-section").hidden = true;
-  if (N >= 2) {
-    const maxShared = Math.max(1, ...pairStats.map((p) => p.shared.length));
-    const hmSize = maxShared > 5 ? Math.ceil(maxShared / 5) : 1;
-    const hmBin = (c) => {
-      if (maxShared <= 1) return 3;
-      if (maxShared <= 5) return 1 + Math.round(((c - 1) * 4) / (maxShared - 1));
-      return Math.min(5, Math.floor((c - 1) / hmSize) + 1);
-    };
-    const sharedOf = (a, b) =>
-      pairStats.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
-
-    const hm = el("table", "hm");
-    const hmHead = el("thead");
-    const hhr = el("tr");
-    hhr.appendChild(el("th"));
-    for (const m of members) {
-      const th = el("th", null, m.emoji);
-      th.title = m.name;
-      hhr.appendChild(th);
-    }
-    hmHead.appendChild(hhr);
-    hm.appendChild(hmHead);
-    const hmBody = el("tbody");
-    for (const a of members) {
-      const tr = el("tr");
-      tr.appendChild(el("th", "rowh", `${a.emoji} ${a.name}`));
-      for (const b of members) {
-        if (a === b) {
-          const td = el("td", "self", String(a.countries.length));
-          td.setAttribute("aria-label", `${a.name}: ${a.countries.length} countries total`);
-          tr.appendChild(td);
-          continue;
-        }
-        const s = sharedOf(a, b);
-        const n = s.shared.length;
-        const td = el("td", n ? `pair b${hmBin(n)}` : "pair", String(n));
-        td.dataset.pair = `${members.indexOf(a)}:${members.indexOf(b)}`;
-        td.setAttribute("tabindex", "0");
-        td.setAttribute("aria-label",
-          `${a.name} and ${b.name}: ${n} shared ${n === 1 ? "country" : "countries"}` +
-          (n ? ` — ${s.shared.map(cname).join(", ")}` : ""));
-        tr.appendChild(td);
-      }
-      hmBody.appendChild(tr);
-    }
-    hm.appendChild(hmBody);
-    $("#heatmap").appendChild(hm);
-
-    const hmLegend = $("#hm-legend");
-    const hmKey = (bg, label) => {
-      const k = el("span", "key");
-      const sw = el("span", "swatch");
-      sw.style.background = bg;
-      k.appendChild(sw);
-      k.appendChild(el("span", null, label));
-      hmLegend.appendChild(k);
-    };
-    hmKey("var(--map-empty)", "no shared stamps");
-    if (maxShared <= 5) {
-      const seenB = new Set();
-      for (let c = 1; c <= maxShared; c++) {
-        const b = hmBin(c);
-        if (seenB.has(b)) continue;
-        seenB.add(b);
-        hmKey(`var(--v${b})`, c === 1 ? "1 country" : `${c} countries`);
-      }
-    } else {
-      for (let b = 1; b <= 5; b++) {
-        const lo = (b - 1) * hmSize + 1;
-        const hi = Math.min(maxShared, b * hmSize);
-        if (lo > maxShared) break;
-        hmKey(`var(--v${b})`, lo === hi ? `${lo} countries` : `${lo}–${hi} countries`);
-      }
-    }
-
-    const hmWrap = $("#hm-wrap");
-    const hmTip = $("#hm-tooltip");
-    const fillHmTip = (a, b) => {
-      const s = sharedOf(a, b);
-      hmTip.textContent = "";
-      hmTip.appendChild(el("div", "t-name", `${a.emoji} ${a.name} × ${b.emoji} ${b.name}`));
-      if (s.shared.length) {
-        hmTip.appendChild(el("div", "t-count",
-          `${s.shared.length} shared ${s.shared.length === 1 ? "country" : "countries"}`));
-        const shown = s.shared.slice(0, 10);
-        hmTip.appendChild(el("div", "t-who",
-          shown.map((cc) => `${flag(cc)} ${cname(cc)}`).join(", ") +
-          (s.shared.length > shown.length ? ` +${s.shared.length - shown.length} more` : "")));
-      } else {
-        hmTip.appendChild(el("div", "t-count", "No overlap yet — two different planets 🪐"));
-      }
-    };
-    const placeHmTip = (x, y) => {
-      const r = hmWrap.getBoundingClientRect();
-      const sx = hmWrap.scrollLeft;
-      hmTip.hidden = false;
-      const tw = hmTip.offsetWidth, th = hmTip.offsetHeight;
-      let left = x - r.left + sx + 14, topPos = y - r.top + 14;
-      if (left + tw > sx + r.width - 4) left = x - r.left + sx - tw - 14;
-      if (topPos + th > r.height - 4) topPos = y - r.top - th - 14;
-      hmTip.style.left = Math.max(4, left) + "px";
-      hmTip.style.top = Math.max(4, topPos) + "px";
-    };
-    const pairFromCell = (t) => {
-      const [ia, ib] = t.dataset.pair.split(":").map(Number);
-      return [members[ia], members[ib]];
-    };
-    hm.addEventListener("pointermove", (e) => {
-      const t = e.target.closest("td.pair");
-      if (!t) { hmTip.hidden = true; return; }
-      fillHmTip(...pairFromCell(t));
-      placeHmTip(e.clientX, e.clientY);
-    });
-    hm.addEventListener("pointerleave", () => { hmTip.hidden = true; });
-    hm.addEventListener("focusin", (e) => {
-      const t = e.target.closest("td.pair");
-      if (!t) return;
-      fillHmTip(...pairFromCell(t));
-      const b = t.getBoundingClientRect();
-      placeHmTip(b.left + b.width / 2, b.top + b.height / 2);
-    });
-    hm.addEventListener("focusout", () => { hmTip.hidden = true; });
-
-    /* fun facts */
-    const facts = $("#facts");
-    const fact = (emoji, title, text) => {
-      const f = el("div", "fact");
-      f.appendChild(el("span", "f-emoji", emoji));
-      const body = el("div");
-      body.appendChild(el("strong", null, title));
-      body.appendChild(el("p", null, text));
-      f.appendChild(body);
-      facts.appendChild(f);
-    };
-    const twins = [...pairStats].sort((x, y) => y.shared.length - x.shared.length)[0];
-    if (twins.shared.length) {
-      const pctSame = Math.round((twins.shared.length / twins.union) * 100);
-      fact("👯", "Travel twins",
-        `${twins.a.name} & ${twins.b.name} share ${twins.shared.length} stamps — their passports are ${pctSame}% identical.`);
-    }
-    const opposites = [...pairStats].sort((x, y) => x.shared.length - y.shared.length)[0];
-    if (opposites !== twins) {
-      fact("🧲", "Opposite itineraries",
-        opposites.shared.length === 0
-          ? `${opposites.a.name} & ${opposites.b.name} don’t share a single country — two different planets.`
-          : `${opposites.a.name} & ${opposites.b.name} overlap on just ${opposites.shared.length} ${opposites.shared.length === 1 ? "country" : "countries"} — swap itineraries, you two.`);
-    }
-    const dream = [...pairStats].sort((x, y) => y.union - x.union)[0];
-    fact("🌍", "The dream team",
-      `${dream.a.name} & ${dream.b.name} have covered ${dream.union} countries between them — the widest lens in the group.`);
-    const wolf = [...members].sort((x, y) => soloCount.get(y.name) - soloCount.get(x.name))[0];
-    if (soloCount.get(wolf.name) > 0)
-      fact("🐺", "Lone wolf",
-        `${wolf.name} holds ${soloCount.get(wolf.name)} solo stamps — countries no one else in the crew has seen.`);
-    const partnersOf = (m) => members.filter((o) =>
-      o !== m && sharedOf(m, o).shared.length > 0).length;
-    const glue = [...members].sort((x, y) => partnersOf(y) - partnersOf(x))[0];
-    if (partnersOf(glue) === N - 1 && members.every((m) => partnersOf(m) === N - 1)) {
-      fact("🤝", "Fully entangled",
-        "Every pair of us shares at least one country — a properly tangled crew.");
-    } else {
-      fact("🤝", "The connector",
-        `${glue.name} has crossed paths with ${partnersOf(glue)} of the other ${N - 1} — the crew’s connective tissue.`);
-    }
-  }
-
-  /* ---------- crew polaroids ---------- */
-  const crew = $("#members");
-  if (!members.length) crew.appendChild(el("p", "empty-note", "The crew shot is empty — be the first in the frame 📷"));
-  members.forEach((m, i) => {
-    const card = el("article", "polaroid");
-    const photo = el("div", `p-photo g${i % 4}`, m.emoji);
-    card.appendChild(photo);
-    const nameRow = el("div", "p-name");
-    nameRow.appendChild(el("span", null, `${m.name} ${m.home ? flag(m.home) : ""}`));
-    nameRow.appendChild(el("span", "p-count", `${m.countries.length} countries`));
-    card.appendChild(nameRow);
-    if (m.camera) card.appendChild(el("p", "p-line", `📷 ${m.camera}`));
-    if (m.favorite && COUNTRIES[m.favorite])
-      card.appendChild(el("p", "p-line", `❤️ Favorite shoot: ${flag(m.favorite)} ${cname(m.favorite)}`));
-    const flags = el("p", "p-flags");
-    const shown = m.countries.slice(0, 14);
-    flags.appendChild(el("span", null, shown.map(flag).join("")));
-    if (m.countries.length > shown.length)
-      flags.appendChild(el("span", "more", ` +${m.countries.length - shown.length} more`));
-    card.appendChild(flags);
-    crew.appendChild(card);
-  });
-
-  /* ---------- table view ---------- */
-  const tableWrap = $("#table");
-  const table = el("table");
-  const thead = el("thead");
-  const hr = el("tr");
-  hr.appendChild(el("th", null, "Country"));
-  hr.appendChild(el("th", null, "Continent"));
-  for (const m of members) hr.appendChild(el("th", "center", `${m.emoji} ${m.name}`));
-  hr.appendChild(el("th", "center", "Total"));
-  thead.appendChild(hr);
-  table.appendChild(thead);
-  const tbody = el("tbody");
-  const sorted = [...visited].sort((a, b) =>
-    visitors.get(b).length - visitors.get(a).length || cname(a).localeCompare(cname(b)));
-  for (const cc of sorted) {
-    const tr = el("tr");
-    tr.appendChild(el("td", null, `${flag(cc)} ${cname(cc)}`));
-    tr.appendChild(el("td", null, COUNTRIES[cc].continent));
-    for (const m of members) {
-      const td = el("td", "center");
-      if (m.set.has(cc)) td.appendChild(el("span", "tick", "✓"));
-      tr.appendChild(td);
-    }
-    tr.appendChild(el("td", "num", String(visitors.get(cc).length)));
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-  tableWrap.appendChild(table);
 
   /* ---------- toasts & confetti ---------- */
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -714,18 +309,468 @@
     }
   };
 
-  /* ---------- identity: who this device belongs to ---------- */
-  const ID_KEY = "group-passport-identity";
-  const getIdentity = () => {
-    try { return JSON.parse(localStorage.getItem(ID_KEY)); } catch { return null; }
-  };
-  const setIdentity = (v) => {
-    try { v ? localStorage.setItem(ID_KEY, JSON.stringify(v)) : localStorage.removeItem(ID_KEY); } catch {}
-  };
+  /* ---------- renderData: every stat on the page, as a function of a member list ----------
+     Called with the saved members at load, and with the live edited list on every
+     tap while editing — the whole page previews your changes in real time. */
+  let gemsExpanded = false;
+  function renderData(list) {
+    const n = list.length;
+    liveN = n;
+
+    // aggregates
+    visitors = new Map();
+    for (const m of list)
+      for (const cc of m.countries) {
+        if (!visitors.has(cc)) visitors.set(cc, []);
+        visitors.get(cc).push(m);
+      }
+    const visited = [...visitors.keys()];
+    const counts = [...visitors.values()].map((v) => v.length);
+    const maxCount = counts.length ? Math.max(...counts) : 0;
+    const unVisited = visited.filter((cc) => COUNTRIES[cc].un).length;
+    const stamps = list.reduce((s, m) => s + m.countries.length, 0);
+    const gems = visited.filter((cc) => visitors.get(cc).length === 1)
+      .sort((a, b) => cname(a).localeCompare(cname(b)));
+    const fullHouse = visited.filter((cc) => visitors.get(cc).length === n && n > 1)
+      .sort((a, b) => cname(a).localeCompare(cname(b)));
+    const meName = (() => {
+      const id = getIdentity();
+      return id && id.type === "member" ? id.name : null;
+    })();
+
+    /* KPI row */
+    const kpis = $("#kpis");
+    kpis.textContent = "";
+    const stat = (label, value, note, hero) => {
+      const s = el("div", "stat" + (hero ? " hero" : ""));
+      s.appendChild(el("p", "label", label));
+      s.appendChild(el("p", "value", value));
+      if (note) s.appendChild(el("p", "note", note));
+      kpis.appendChild(s);
+    };
+    const pct = unTotal ? Math.round((unVisited / unTotal) * 100) : 0;
+    const contVisited = new Set(visited.map((cc) => COUNTRIES[cc].continent));
+    const top = [...list].sort((a, b) => b.countries.length - a.countries.length)[0];
+    stat("Countries in the group passport", String(visited.length),
+      `${pct}% of the world’s ${unTotal} UN countries`, true);
+    stat("Passport stamps", String(stamps), "every member-visit, added up");
+    stat("Continents", `${continentsAll.filter((c) => contVisited.has(c)).length} of 7`,
+      contVisited.has("Antarctica") ? "including Antarctica — legends 🐧" : "Antarctica still awaits 🐧");
+    if (top) stat("Most traveled", String(top.countries.length), `${top.emoji} ${top.name} leads the pack`);
+    stat("Hidden gems", String(gems.length), "countries only one of us has seen");
+
+    /* choropleth bins + legend */
+    const binSize = maxCount > 5 ? Math.ceil(maxCount / 5) : 1;
+    const binOf = (c) => {
+      if (maxCount <= 1) return 3;
+      if (maxCount <= 5) return 1 + Math.round(((c - 1) * 4) / (maxCount - 1));
+      return Math.min(5, Math.floor((c - 1) / binSize) + 1);
+    };
+    const legend = $("#map-legend");
+    legend.textContent = "";
+    const legendKey = (bg, label) => {
+      const k = el("span", "key");
+      const sw = el("span", "swatch");
+      sw.style.background = bg;
+      k.appendChild(sw);
+      k.appendChild(el("span", null, label));
+      legend.appendChild(k);
+    };
+    legendKey("var(--map-empty)", "no stamps yet");
+    if (maxCount <= 5) {
+      const seenBins = new Set();
+      for (let c = 1; c <= maxCount; c++) {
+        const b = binOf(c);
+        if (seenBins.has(b)) continue;
+        seenBins.add(b);
+        legendKey(`var(--v${b})`, c === 1 ? "1 person" : `${c} people`);
+      }
+    } else {
+      for (let b = 1; b <= 5; b++) {
+        const lo = (b - 1) * binSize + 1;
+        const hi = Math.min(maxCount, b * binSize);
+        if (lo > maxCount) break;
+        legendKey(`var(--v${b})`, lo === hi ? `${lo} people` : `${lo}–${hi} people`);
+      }
+    }
+
+    /* map shading (geometry is static; classes carry the data) */
+    for (const node of svg.querySelectorAll("[data-cc]")) {
+      const cc = node.dataset.cc;
+      const v = visitors.get(cc);
+      const keepMine = node.classList.contains("mine");
+      if (node.tagName === "path") {
+        node.setAttribute("class", v ? `country hit b${binOf(v.length)}` : "country");
+      } else {
+        node.setAttribute("class", v ? `cdot b${binOf(v.length)}` : "cdot off");
+      }
+      if (keepMine) node.classList.add("mine");
+      if (v) {
+        node.setAttribute("tabindex", "0");
+        node.setAttribute("role", "img");
+        node.setAttribute("aria-label", `${cname(cc)}: ${v.length} of ${n} — ${v.map((m) => m.name).join(", ")}`);
+      } else {
+        node.removeAttribute("tabindex");
+        node.removeAttribute("role");
+        node.removeAttribute("aria-label");
+      }
+    }
+
+    /* leaderboard */
+    const lb = $("#leaderboard");
+    lb.textContent = "";
+    if (!list.length) lb.appendChild(el("p", "empty-note", "Nobody on the board yet — add yourself below 👇"));
+    const lbMax = Math.max(1, ...list.map((m) => m.countries.length));
+    for (const m of [...list].sort((a, b) => b.countries.length - a.countries.length)) {
+      const row = el("div", "lb-row");
+      const nameEl = el("span", "lb-name", `${m.emoji} ${m.name}`);
+      if (meName && m.name === meName) nameEl.appendChild(el("span", "you-badge", "· you"));
+      row.appendChild(nameEl);
+      const track = el("div", "lb-track");
+      const barEl = el("div", "lb-bar");
+      barEl.style.width = `${(m.countries.length / lbMax) * 100}%`;
+      track.appendChild(barEl);
+      track.appendChild(el("span", "lb-val", String(m.countries.length)));
+      row.appendChild(track);
+      lb.appendChild(row);
+    }
+
+    /* continent checklist + unlocked regions */
+    const ct = $("#continents");
+    ct.textContent = "";
+    const rows = continentsAll
+      .filter((c) => c !== "Antarctica")
+      .map((c) => {
+        const scope = scopes.get(`continent|${c}`);
+        const total = scope ? scope.total : 0;
+        const got = visited.filter((cc) => COUNTRIES[cc].un && COUNTRIES[cc].continent === c).length;
+        return { c, got, total };
+      })
+      .sort((a, b) => b.got / b.total - a.got / a.total);
+    for (const r of rows) {
+      const done = r.got === r.total;
+      const row = el("div", "ct-row" + (done ? " done" : ""));
+      row.appendChild(el("span", null, r.c));
+      const meter = el("div", "ct-meter");
+      const fill = el("div", "ct-fill");
+      fill.style.width = `${(r.got / r.total) * 100}%`;
+      meter.appendChild(fill);
+      row.appendChild(meter);
+      row.appendChild(el("span", "ct-val", (done ? "🏆 " : "") + `${r.got} / ${r.total}`));
+      ct.appendChild(row);
+    }
+    if (contVisited.has("Antarctica")) {
+      const who = visitors.get("AQ").map((m) => m.name).join(", ");
+      ct.appendChild(el("p", "ct-extra", `🐧 And yes — Antarctica: ${who} actually made it.`));
+    }
+    const unlockedSubs = [...scopes.values()]
+      .filter((s) => s.kind === "region" && s.total >= 2 && s.ccs.every((cc) => visitors.has(cc)))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (unlockedSubs.length) {
+      ct.appendChild(el("p", "sub-head", "Regions unlocked 🎖️"));
+      const subWrap = el("div", "chips");
+      for (const s of unlockedSubs) {
+        const chip = el("span", "chip");
+        chip.appendChild(el("span", null, `🎖️ ${s.name}`));
+        chip.appendChild(el("span", "who", `· all ${s.total}`));
+        subWrap.appendChild(chip);
+      }
+      ct.appendChild(subWrap);
+    }
+
+    /* full-house & hidden gems */
+    const overlap = $("#overlap");
+    overlap.textContent = "";
+    if (fullHouse.length) {
+      for (const cc of fullHouse) {
+        const chip = el("span", "chip");
+        chip.appendChild(el("span", null, `${flag(cc)} ${cname(cc)}`));
+        overlap.appendChild(chip);
+      }
+    } else if (n < 2) {
+      overlap.appendChild(el("p", "empty-note", "This one needs at least two members — recruit the crew!"));
+    } else {
+      overlap.appendChild(el("p", "empty-note",
+        `No country has all ${n} stamps yet — sounds like a group trip waiting to happen.`));
+    }
+    const gemsEl = $("#gems");
+    gemsEl.textContent = "";
+    if (gems.length) {
+      const GEMS_SHOWN = 15;
+      gems.forEach((cc, i) => {
+        const m = visitors.get(cc)[0];
+        const chip = el("span", "chip" + (!gemsExpanded && i >= GEMS_SHOWN ? " chip-hidden" : ""));
+        chip.appendChild(el("span", null, `${flag(cc)} ${cname(cc)}`));
+        chip.appendChild(el("span", "who", `· ${m.name}`));
+        gemsEl.appendChild(chip);
+      });
+      if (!gemsExpanded && gems.length > GEMS_SHOWN) {
+        const more = el("button", "chip chip-more", `show all ${gems.length} ▾`);
+        more.type = "button";
+        more.addEventListener("click", () => {
+          gemsExpanded = true;
+          gemsEl.querySelectorAll(".chip-hidden").forEach((c) => c.classList.remove("chip-hidden"));
+          more.remove();
+        });
+        gemsEl.appendChild(more);
+      }
+    } else {
+      gemsEl.appendChild(el("p", "empty-note", visited.length
+        ? "No solo stamps — this crew travels as a pack."
+        : "No stamps anywhere yet — a blank roll of film, endless possibilities."));
+    }
+
+    /* crossing paths: pairwise heatmap + fun facts */
+    $("#pairs-section").hidden = n < 2;
+    $("#heatmap").textContent = "";
+    $("#hm-legend").textContent = "";
+    $("#facts").textContent = "";
+    if (n >= 2) {
+      const soloCount = new Map(list.map((m) => [m.name, 0]));
+      for (const cc of gems) {
+        const m = visitors.get(cc)[0];
+        soloCount.set(m.name, soloCount.get(m.name) + 1);
+      }
+      const pairStats = [];
+      for (let i = 0; i < n; i++)
+        for (let j = i + 1; j < n; j++) {
+          const a = list[i], b = list[j];
+          const bSet = b.set || new Set(b.countries);
+          const shared = a.countries.filter((cc) => bSet.has(cc))
+            .sort((x, y) => cname(x).localeCompare(cname(y)));
+          const union = new Set([...a.countries, ...b.countries]).size;
+          pairStats.push({ a, b, shared, union });
+        }
+      const maxShared = Math.max(1, ...pairStats.map((p) => p.shared.length));
+      const hmSize = maxShared > 5 ? Math.ceil(maxShared / 5) : 1;
+      const hmBin = (c) => {
+        if (maxShared <= 1) return 3;
+        if (maxShared <= 5) return 1 + Math.round(((c - 1) * 4) / (maxShared - 1));
+        return Math.min(5, Math.floor((c - 1) / hmSize) + 1);
+      };
+      const sharedOf = (a, b) =>
+        pairStats.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
+
+      const hm = el("table", "hm");
+      const hmHead = el("thead");
+      const hhr = el("tr");
+      hhr.appendChild(el("th"));
+      for (const m of list) {
+        const th = el("th", null, m.emoji);
+        th.title = m.name;
+        hhr.appendChild(th);
+      }
+      hmHead.appendChild(hhr);
+      hm.appendChild(hmHead);
+      const hmBody = el("tbody");
+      for (const a of list) {
+        const tr = el("tr");
+        tr.appendChild(el("th", "rowh", `${a.emoji} ${a.name}`));
+        for (const b of list) {
+          if (a === b) {
+            const td = el("td", "self", String(a.countries.length));
+            td.setAttribute("aria-label", `${a.name}: ${a.countries.length} countries total`);
+            tr.appendChild(td);
+            continue;
+          }
+          const s = sharedOf(a, b);
+          const cnt = s.shared.length;
+          const td = el("td", cnt ? `pair b${hmBin(cnt)}` : "pair", String(cnt));
+          td.dataset.pair = `${list.indexOf(a)}:${list.indexOf(b)}`;
+          td.setAttribute("tabindex", "0");
+          td.setAttribute("aria-label",
+            `${a.name} and ${b.name}: ${cnt} shared ${cnt === 1 ? "country" : "countries"}` +
+            (cnt ? ` — ${s.shared.map(cname).join(", ")}` : ""));
+          tr.appendChild(td);
+        }
+        hmBody.appendChild(tr);
+      }
+      hm.appendChild(hmBody);
+      $("#heatmap").appendChild(hm);
+
+      const hmLegend = $("#hm-legend");
+      const hmKey = (bg, label) => {
+        const k = el("span", "key");
+        const sw = el("span", "swatch");
+        sw.style.background = bg;
+        k.appendChild(sw);
+        k.appendChild(el("span", null, label));
+        hmLegend.appendChild(k);
+      };
+      hmKey("var(--map-empty)", "no shared stamps");
+      if (maxShared <= 5) {
+        const seenB = new Set();
+        for (let c = 1; c <= maxShared; c++) {
+          const b = hmBin(c);
+          if (seenB.has(b)) continue;
+          seenB.add(b);
+          hmKey(`var(--v${b})`, c === 1 ? "1 country" : `${c} countries`);
+        }
+      } else {
+        for (let b = 1; b <= 5; b++) {
+          const lo = (b - 1) * hmSize + 1;
+          const hi = Math.min(maxShared, b * hmSize);
+          if (lo > maxShared) break;
+          hmKey(`var(--v${b})`, lo === hi ? `${lo} countries` : `${lo}–${hi} countries`);
+        }
+      }
+
+      const hmWrap = $("#hm-wrap");
+      const hmTip = $("#hm-tooltip");
+      const fillHmTip = (a, b) => {
+        const s = sharedOf(a, b);
+        hmTip.textContent = "";
+        hmTip.appendChild(el("div", "t-name", `${a.emoji} ${a.name} × ${b.emoji} ${b.name}`));
+        if (s.shared.length) {
+          hmTip.appendChild(el("div", "t-count",
+            `${s.shared.length} shared ${s.shared.length === 1 ? "country" : "countries"}`));
+          const shown = s.shared.slice(0, 10);
+          hmTip.appendChild(el("div", "t-who",
+            shown.map((cc) => `${flag(cc)} ${cname(cc)}`).join(", ") +
+            (s.shared.length > shown.length ? ` +${s.shared.length - shown.length} more` : "")));
+        } else {
+          hmTip.appendChild(el("div", "t-count", "No overlap yet — two different planets 🪐"));
+        }
+      };
+      const placeHmTip = (x, y) => {
+        const r = hmWrap.getBoundingClientRect();
+        const sx = hmWrap.scrollLeft;
+        hmTip.hidden = false;
+        const tw = hmTip.offsetWidth, th = hmTip.offsetHeight;
+        let left = x - r.left + sx + 14, topPos = y - r.top + 14;
+        if (left + tw > sx + r.width - 4) left = x - r.left + sx - tw - 14;
+        if (topPos + th > r.height - 4) topPos = y - r.top - th - 14;
+        hmTip.style.left = Math.max(4, left) + "px";
+        hmTip.style.top = Math.max(4, topPos) + "px";
+      };
+      const pairFromCell = (t) => {
+        const [ia, ib] = t.dataset.pair.split(":").map(Number);
+        return [list[ia], list[ib]];
+      };
+      hm.addEventListener("pointermove", (e) => {
+        const t = e.target.closest("td.pair");
+        if (!t) { hmTip.hidden = true; return; }
+        fillHmTip(...pairFromCell(t));
+        placeHmTip(e.clientX, e.clientY);
+      });
+      hm.addEventListener("pointerleave", () => { hmTip.hidden = true; });
+      hm.addEventListener("focusin", (e) => {
+        const t = e.target.closest("td.pair");
+        if (!t) return;
+        fillHmTip(...pairFromCell(t));
+        const b = t.getBoundingClientRect();
+        placeHmTip(b.left + b.width / 2, b.top + b.height / 2);
+      });
+      hm.addEventListener("focusout", () => { hmTip.hidden = true; });
+
+      /* fun facts */
+      const facts = $("#facts");
+      const fact = (emoji, title, text) => {
+        const f = el("div", "fact");
+        f.appendChild(el("span", "f-emoji", emoji));
+        const body = el("div");
+        body.appendChild(el("strong", null, title));
+        body.appendChild(el("p", null, text));
+        f.appendChild(body);
+        facts.appendChild(f);
+      };
+      const twins = [...pairStats].sort((x, y) => y.shared.length - x.shared.length)[0];
+      if (twins.shared.length) {
+        const pctSame = Math.round((twins.shared.length / twins.union) * 100);
+        fact("👯", "Travel twins",
+          `${twins.a.name} & ${twins.b.name} share ${twins.shared.length} stamps — their passports are ${pctSame}% identical.`);
+      }
+      const opposites = [...pairStats].sort((x, y) => x.shared.length - y.shared.length)[0];
+      if (opposites !== twins) {
+        fact("🧲", "Opposite itineraries",
+          opposites.shared.length === 0
+            ? `${opposites.a.name} & ${opposites.b.name} don’t share a single country — two different planets.`
+            : `${opposites.a.name} & ${opposites.b.name} overlap on just ${opposites.shared.length} ${opposites.shared.length === 1 ? "country" : "countries"} — swap itineraries, you two.`);
+      }
+      const dream = [...pairStats].sort((x, y) => y.union - x.union)[0];
+      fact("🌍", "The dream team",
+        `${dream.a.name} & ${dream.b.name} have covered ${dream.union} countries between them — the widest lens in the group.`);
+      const wolf = [...list].sort((x, y) => soloCount.get(y.name) - soloCount.get(x.name))[0];
+      if (soloCount.get(wolf.name) > 0)
+        fact("🐺", "Lone wolf",
+          `${wolf.name} holds ${soloCount.get(wolf.name)} solo stamps — countries no one else in the crew has seen.`);
+      const partnersOf = (m) => list.filter((o) =>
+        o !== m && sharedOf(m, o).shared.length > 0).length;
+      const glue = [...list].sort((x, y) => partnersOf(y) - partnersOf(x))[0];
+      if (partnersOf(glue) === n - 1 && list.every((m) => partnersOf(m) === n - 1)) {
+        fact("🤝", "Fully entangled",
+          "Every pair of us shares at least one country — a properly tangled crew.");
+      } else {
+        fact("🤝", "The connector",
+          `${glue.name} has crossed paths with ${partnersOf(glue)} of the other ${n - 1} — the crew’s connective tissue.`);
+      }
+    }
+
+    /* crew polaroids */
+    const crew = $("#members");
+    crew.textContent = "";
+    if (!list.length) crew.appendChild(el("p", "empty-note", "The crew shot is empty — be the first in the frame 📷"));
+    list.forEach((m, i) => {
+      const card = el("article", "polaroid");
+      const photo = el("div", `p-photo g${i % 4}`, m.emoji);
+      card.appendChild(photo);
+      const nameRow = el("div", "p-name");
+      nameRow.appendChild(el("span", null, `${m.name} ${m.home ? flag(m.home) : ""}`));
+      nameRow.appendChild(el("span", "p-count", `${m.countries.length} countries`));
+      card.appendChild(nameRow);
+      if (m.camera) card.appendChild(el("p", "p-line", `📷 ${m.camera}`));
+      if (m.favorite && COUNTRIES[m.favorite])
+        card.appendChild(el("p", "p-line", `❤️ Favorite shoot: ${flag(m.favorite)} ${cname(m.favorite)}`));
+      const flags = el("p", "p-flags");
+      const shown = m.countries.slice(0, 14);
+      flags.appendChild(el("span", null, shown.map(flag).join("")));
+      if (m.countries.length > shown.length)
+        flags.appendChild(el("span", "more", ` +${m.countries.length - shown.length} more`));
+      card.appendChild(flags);
+      crew.appendChild(card);
+    });
+
+    /* table view */
+    const tableWrap = $("#table");
+    tableWrap.textContent = "";
+    const table = el("table");
+    const thead = el("thead");
+    const hr = el("tr");
+    hr.appendChild(el("th", null, "Country"));
+    hr.appendChild(el("th", null, "Continent"));
+    for (const m of list) hr.appendChild(el("th", "center", `${m.emoji} ${m.name}`));
+    hr.appendChild(el("th", "center", "Total"));
+    thead.appendChild(hr);
+    table.appendChild(thead);
+    const tbody = el("tbody");
+    const sorted = [...visited].sort((a, b) =>
+      visitors.get(b).length - visitors.get(a).length || cname(a).localeCompare(cname(b)));
+    for (const cc of sorted) {
+      const tr = el("tr");
+      tr.appendChild(el("td", null, `${flag(cc)} ${cname(cc)}`));
+      tr.appendChild(el("td", null, COUNTRIES[cc].continent));
+      for (const m of list) {
+        const td = el("td", "center");
+        const mset = m.set || new Set(m.countries);
+        if (mset.has(cc)) td.appendChild(el("span", "tick", "✓"));
+        tr.appendChild(td);
+      }
+      tr.appendChild(el("td", "num", String(visitors.get(cc).length)));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+
+    /* footer */
+    $("#foot-line").textContent = n
+      ? `${n} photographer${n === 1 ? "" : "s"} · ${visited.length} countries · ${stamps} stamps — built with ♥ and too many memory cards. Updates itself from data/travelers.js.`
+      : "A blank passport, waiting for its first stamp — built with ♥ and too many memory cards.";
+  }
+
+  renderData(members);
 
   /* ---------- passport editor: modal onboarding + floating edit bar ---------- */
   const editorAPI = (function editor() {
-    const mapSvg = $("#map");
     const bar = $("#edit-bar");
     const labelEl = $("#eb-label");
     const statusEl = $("#eb-status");
@@ -757,26 +802,24 @@
     const isDirty = () =>
       !!working && (working.size !== baseline.size || [...working].some((cc) => !baseline.has(cc)));
 
+    // the member list with your in-progress edits applied — feeds the live page
+    const effectiveList = () => {
+      if (!working) return members;
+      const mine = [...working].sort();
+      if (isNew) {
+        const e = myEntry();
+        return [...members, { ...e, set: new Set(e.countries) }];
+      }
+      return members.map((m, i) =>
+        i === memberIdx ? { ...m, countries: mine, set: new Set(mine) } : m);
+    };
+
     const applyMine = () => {
-      mapSvg.querySelectorAll(".mine").forEach((n) => n.classList.remove("mine"));
-      mapSvg.querySelectorAll("[data-temp]").forEach((n) => n.remove());
+      svg.querySelectorAll(".mine").forEach((n) => n.classList.remove("mine"));
       if (!working) return;
       for (const cc of working) {
-        let n = mapSvg.querySelector(`[data-cc="${cc}"]`);
-        if (!n) {
-          const meta = COUNTRIES[cc];
-          if (!meta || meta.x == null) continue;
-          n = document.createElementNS(SVGNS, "circle");
-          n.setAttribute("cx", meta.x);
-          n.setAttribute("cy", meta.y);
-          n.setAttribute("r", "4.5");
-          n.setAttribute("class", "cdot");
-          n.style.fill = "var(--map-empty)";
-          n.dataset.cc = cc;
-          n.dataset.temp = "1";
-          mapSvg.appendChild(n);
-        }
-        n.classList.add("mine");
+        const n = svg.querySelector(`[data-cc="${cc}"]`);
+        if (n) n.classList.add("mine");
       }
     };
     const renderStatus = (msg) => {
@@ -815,12 +858,13 @@
     };
     const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
 
-    const refresh = () => { applyMine(); renderStatus(); saveDraft(); };
+    // the whole page previews your edits live
+    const refresh = () => { renderData(effectiveList()); applyMine(); renderStatus(); saveDraft(); };
 
     /* selection effects: ripple + floating flag + brightness pop on the country */
     const fx = (cc, adding, pt) => {
       if (reduceMotion) return;
-      const node = mapSvg.querySelector(`[data-cc="${cc}"]`);
+      const node = svg.querySelector(`[data-cc="${cc}"]`);
       const wr = wrap.getBoundingClientRect();
       let x, y;
       if (pt) { x = pt.x; y = pt.y; }
@@ -862,7 +906,7 @@
     let achieved = new Set();
     const pulseScope = (s) => {
       for (const cc of s.ccs) {
-        const n = mapSvg.querySelector(`[data-cc="${cc}"]`);
+        const n = svg.querySelector(`[data-cc="${cc}"]`);
         if (!n) continue;
         n.classList.add("celebrate");
         setTimeout(() => n.classList.remove("celebrate"), 1800);
@@ -909,7 +953,7 @@
       achieved = achievedKeys(working);
       bar.hidden = false;
       document.body.classList.add("editing");
-      mapSvg.classList.add("editing");
+      svg.classList.add("editing");
       setLabel();
       $("#map-hint").textContent = "Tap countries to add or remove them.";
       refresh();
@@ -923,15 +967,32 @@
       memberIdx = -1;
       bar.hidden = true;
       document.body.classList.remove("editing");
-      mapSvg.classList.remove("editing");
+      svg.classList.remove("editing");
       $("#map-hint").textContent = "";
+      renderData(members);
       applyMine();
       closeMenu();
       if (dirty) showToast("📝", "Draft kept", "Your unsaved changes are safe on this device — come back anytime.");
     };
     $("#eb-done").addEventListener("click", exitEdit);
 
-    mapSvg.addEventListener("click", (e) => {
+    // after a confirmed save, fold your edits into the page's saved data
+    const commitLocal = () => {
+      const me = myEntry();
+      if (isNew) {
+        members.push({ ...me, set: new Set(me.countries) });
+        memberIdx = members.length - 1;
+        isNew = false;
+      } else {
+        members[memberIdx] = { ...members[memberIdx], countries: me.countries, set: new Set(me.countries) };
+      }
+      baseline = new Set(working);
+      setLabel();
+      if (onSavedIdentity) onSavedIdentity(me.name);
+      refresh();
+    };
+
+    svg.addEventListener("click", (e) => {
       if (!working || mapView.clickSuppressed()) return;
       const t = e.target.closest("[data-cc]");
       if (t) toggle(t.dataset.cc, { x: e.clientX, y: e.clientY });
@@ -1142,8 +1203,8 @@
         if (res.status === 409 || res.status === 422) res = await attempt(); // someone saved in between — remerge on the fresh file
         if (!res.ok) throw new Error(`GitHub rejected the save (HTTP ${res.status}). Check the token’s Contents permission.`);
         clearDraft();
-        baseline = new Set(working);
         setIdentity({ type: "member", name: myEntry().name });
+        commitLocal();
         renderStatus("Saved ✓ — live in about a minute");
         showToast("💾", "Saved to GitHub", "Your stamps are committed — the live site updates itself in about a minute.");
       } catch (e) {
@@ -1249,10 +1310,17 @@
       chip.appendChild(edit);
       const sw = el("button", "id-switch", "not you?");
       sw.type = "button";
-      sw.addEventListener("click", () => { setIdentity(null); editorAPI.exitEdit(); showWhoDialog(); });
+      sw.addEventListener("click", () => {
+        setIdentity(null);
+        chip.hidden = true;
+        editorAPI.exitEdit();
+        showWhoDialog();
+      });
       chip.appendChild(sw);
-      const row = [...document.querySelectorAll(".lb-name")].find((n) => n.textContent.includes(m.name));
-      if (row && !row.querySelector(".you-badge")) row.appendChild(el("span", "you-badge", "· you"));
+    };
+    onSavedIdentity = (name) => {
+      const i = members.findIndex((m) => m.name === name);
+      if (i >= 0) applyIdentityUI(i);
     };
 
     const showWhoDialog = () => {
@@ -1307,9 +1375,4 @@
     else if (!id || id.type !== "guest") showWhoDialog(); // unknown (or stale member) — ask
     // guests are remembered too: never nag them again
   })();
-
-  /* ---------- footer ---------- */
-  $("#foot-line").textContent = N
-    ? `${N} photographer${N === 1 ? "" : "s"} · ${visited.length} countries · ${stamps} stamps — built with ♥ and too many memory cards. Updates itself from data/travelers.js.`
-    : "A blank passport, waiting for its first stamp — built with ♥ and too many memory cards.";
 })();
