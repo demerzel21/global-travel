@@ -121,7 +121,7 @@
   /* ---------- map zoom & pan ---------- */
   const mapView = (function () {
     const W = WORLD_MAP.width, H = WORLD_MAP.height;
-    const MAXZ = 8;
+    const MAXZ = 20; // deep enough to comfortably tap Jordan, Malta, the Caribbean…
     const vb = { x: 0, y: 0, w: W, h: H };
     let dragging = false;
     let suppressClick = false;
@@ -139,6 +139,9 @@
       vb.x = Math.min(W - vb.w, Math.max(0, vb.x));
       vb.y = Math.min(H - vb.h, Math.max(0, vb.y));
       svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+      // dots grow gently with zoom instead of ballooning linearly
+      const rr = (4.5 / Math.sqrt(zoomLevel())).toFixed(2);
+      svg.querySelectorAll(".cdot").forEach((d) => d.setAttribute("r", rr));
       syncUI();
     };
     const zoomAt = (cx, cy, f) => {
@@ -313,6 +316,23 @@
      Called with the saved members at load, and with the live edited list on every
      tap while editing — the whole page previews your changes in real time. */
   let gemsExpanded = false;
+  let firstRender = true;
+  const statPrev = new Map();  // stat label -> last value (for count-up)
+  const lbPrev = new Map();    // member name -> last bar width %
+  const ctPrev = new Map();    // continent -> last meter width %
+  const animateNumber = (elm, from, to, suffix) => {
+    if (reduceMotion || from === to) { elm.textContent = to + suffix; return; }
+    const start = performance.now();
+    const dur = 650;
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      elm.textContent = Math.round(from + (to - from) * eased) + suffix;
+      if (t < 1 && elm.isConnected) requestAnimationFrame(step);
+      else if (elm.isConnected) elm.textContent = to + suffix;
+    };
+    requestAnimationFrame(step);
+  };
   function renderData(list) {
     const n = list.length;
     liveN = n;
@@ -344,7 +364,24 @@
     const stat = (label, value, note, hero) => {
       const s = el("div", "stat" + (hero ? " hero" : ""));
       s.appendChild(el("p", "label", label));
-      s.appendChild(el("p", "value", value));
+      const valEl = el("p", "value");
+      const numM = String(value).match(/^(\d+)([\s\S]*)$/);
+      const prev = statPrev.get(label);
+      statPrev.set(label, value);
+      if (numM && value !== prev) {
+        const to = +numM[1];
+        const suffix = numM[2];
+        const prevM = prev != null ? String(prev).match(/^(\d+)/) : null;
+        const from = prevM ? +prevM[1] : 0;
+        animateNumber(valEl, from, to, suffix);
+        if (!reduceMotion && from !== to) {
+          valEl.classList.add("bump");
+          setTimeout(() => valEl.classList.remove("bump"), 700);
+        }
+      } else {
+        valEl.textContent = value;
+      }
+      s.appendChild(valEl);
       if (note) s.appendChild(el("p", "note", note));
       kpis.appendChild(s);
     };
@@ -428,7 +465,12 @@
       row.appendChild(nameEl);
       const track = el("div", "lb-track");
       const barEl = el("div", "lb-bar");
-      barEl.style.width = `${(m.countries.length / lbMax) * 100}%`;
+      const pctW = (m.countries.length / lbMax) * 100;
+      barEl.style.width = `${pctW}%`;
+      const prevW = lbPrev.has(m.name) ? lbPrev.get(m.name) : (firstRender ? 0 : null);
+      lbPrev.set(m.name, pctW);
+      if (!reduceMotion && barEl.animate && prevW != null && Math.abs(prevW - pctW) > 0.5)
+        barEl.animate([{ width: prevW + "%" }, { width: pctW + "%" }], { duration: 500, easing: "ease-out" });
       track.appendChild(barEl);
       track.appendChild(el("span", "lb-val", String(m.countries.length)));
       row.appendChild(track);
@@ -453,7 +495,12 @@
       row.appendChild(el("span", null, r.c));
       const meter = el("div", "ct-meter");
       const fill = el("div", "ct-fill");
-      fill.style.width = `${(r.got / r.total) * 100}%`;
+      const pctW = (r.got / r.total) * 100;
+      fill.style.width = `${pctW}%`;
+      const prevW = ctPrev.has(r.c) ? ctPrev.get(r.c) : (firstRender ? 0 : null);
+      ctPrev.set(r.c, pctW);
+      if (!reduceMotion && fill.animate && prevW != null && Math.abs(prevW - pctW) > 0.1)
+        fill.animate([{ width: prevW + "%" }, { width: pctW + "%" }], { duration: 500, easing: "ease-out" });
       meter.appendChild(fill);
       row.appendChild(meter);
       row.appendChild(el("span", "ct-val", (done ? "🏆 " : "") + `${r.got} / ${r.total}`));
@@ -765,6 +812,8 @@
     $("#foot-line").textContent = n
       ? `${n} photographer${n === 1 ? "" : "s"} · ${visited.length} countries · ${stamps} stamps — built with ♥ and too many memory cards. Updates itself from data/travelers.js.`
       : "A blank passport, waiting for its first stamp — built with ♥ and too many memory cards.";
+
+    firstRender = false;
   }
 
   renderData(members);
@@ -992,9 +1041,24 @@
       refresh();
     };
 
+    // fat-finger assist: a tap on empty water near a country snaps to the
+    // closest one — probe rings of increasing radius, majority vote per ring
+    const findNearby = (x, y) => {
+      for (const rad of [6, 11, 17, 24]) {
+        const hits = new Map();
+        for (let a = 0; a < 12; a++) {
+          const ang = (Math.PI / 6) * a;
+          const hit = document.elementFromPoint(x + Math.cos(ang) * rad, y + Math.sin(ang) * rad);
+          const n = hit && hit.closest && hit.closest("[data-cc]");
+          if (n) hits.set(n, (hits.get(n) || 0) + 1);
+        }
+        if (hits.size) return [...hits.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      }
+      return null;
+    };
     svg.addEventListener("click", (e) => {
       if (!working || mapView.clickSuppressed()) return;
-      const t = e.target.closest("[data-cc]");
+      const t = e.target.closest("[data-cc]") || findNearby(e.clientX, e.clientY);
       if (t) toggle(t.dataset.cc, { x: e.clientX, y: e.clientY });
     });
     const addFromSearch = () => {

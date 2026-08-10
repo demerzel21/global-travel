@@ -192,7 +192,14 @@ dialog#who-dialog::backdrop { background: rgba(10, 10, 10, 0.5); backdrop-filter
   box-shadow: var(--shadow);
 }
 .stat .label { color: var(--ink-2); font-size: 13px; margin: 0; }
-.stat .value { font-size: 30px; font-weight: 650; margin: 2px 0 0; }
+.stat .value { font-size: 30px; font-weight: 650; margin: 2px 0 0; transform-origin: left center; }
+.stat .value.bump { animation: stat-bump 0.65s cubic-bezier(0.2, 0.9, 0.3, 1.35); }
+@keyframes stat-bump {
+  35% { transform: scale(1.22); color: var(--accent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stat .value.bump { animation: none; }
+}
 .stat .note  { color: var(--muted); font-size: 12.5px; margin: 2px 0 0; }
 .stat.hero   { grid-column: span 2; }
 .stat.hero .value { font-size: 54px; line-height: 1.1; }
