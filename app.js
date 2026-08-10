@@ -188,6 +188,114 @@
     svg.appendChild(dot);
   }
 
+  /* ---------- map zoom & pan ---------- */
+  const mapView = (function () {
+    const W = WORLD_MAP.width, H = WORLD_MAP.height;
+    const MAXZ = 8;
+    const vb = { x: 0, y: 0, w: W, h: H };
+    let dragging = false;
+    let suppressClick = false;
+    const zoomLevel = () => W / vb.w;
+    const syncUI = () => {
+      const zoomed = zoomLevel() > 1.01;
+      $("#zoom-reset").hidden = !zoomed;
+      // at rest, one finger scrolls the page; zoomed in, it pans the map
+      svg.style.touchAction = zoomed ? "none" : "pan-y";
+      svg.classList.toggle("zoomed", zoomed);
+    };
+    const apply = () => {
+      vb.w = Math.min(W, Math.max(W / MAXZ, vb.w));
+      vb.h = vb.w * (H / W);
+      vb.x = Math.min(W - vb.w, Math.max(0, vb.x));
+      vb.y = Math.min(H - vb.h, Math.max(0, vb.y));
+      svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+      syncUI();
+    };
+    const zoomAt = (cx, cy, f) => {
+      const r = svg.getBoundingClientRect();
+      const px = vb.x + ((cx - r.left) / r.width) * vb.w;
+      const py = vb.y + ((cy - r.top) / r.height) * vb.h;
+      const nw = Math.min(W, Math.max(W / MAXZ, vb.w / f));
+      vb.x = px - ((px - vb.x) / vb.w) * nw;
+      vb.y = py - ((py - vb.y) / vb.h) * (nw * (H / W));
+      vb.w = nw;
+      apply();
+    };
+    const center = () => {
+      const r = svg.getBoundingClientRect();
+      return [r.left + r.width / 2, r.top + r.height / 2];
+    };
+    $("#zoom-in").addEventListener("click", () => zoomAt(...center(), 1.5));
+    $("#zoom-out").addEventListener("click", () => zoomAt(...center(), 1 / 1.5));
+    $("#zoom-reset").addEventListener("click", () => {
+      vb.x = 0; vb.y = 0; vb.w = W; vb.h = H;
+      apply();
+    });
+    svg.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.3 : 1 / 1.3);
+    }, { passive: false });
+
+    // drag to pan (when zoomed) + two-finger pinch
+    const pts = new Map();
+    let moved = 0, lastMid = null, lastDist = 0;
+    svg.addEventListener("pointerdown", (e) => {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) moved = 0;
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        lastDist = Math.hypot(a.x - b.x, a.y - b.y);
+        lastMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      }
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!pts.has(e.pointerId)) return;
+      const p = pts.get(e.pointerId);
+      const dx = e.clientX - p.x, dy = e.clientY - p.y;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) {
+        if (zoomLevel() <= 1.01) return;
+        if (e.pointerType === "mouse" && !e.buttons) return;
+        moved += Math.abs(dx) + Math.abs(dy);
+        if (moved > 4) dragging = true;
+        const r = svg.getBoundingClientRect();
+        vb.x -= dx * (vb.w / r.width);
+        vb.y -= dy * (vb.h / r.height);
+        apply();
+      } else if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        if (lastDist > 0 && dist > 0) zoomAt(mid.x, mid.y, dist / lastDist);
+        if (lastMid) {
+          const r = svg.getBoundingClientRect();
+          vb.x -= (mid.x - lastMid.x) * (vb.w / r.width);
+          vb.y -= (mid.y - lastMid.y) * (vb.h / r.height);
+          apply();
+        }
+        lastDist = dist;
+        lastMid = mid;
+        moved = 10;
+        dragging = true;
+      }
+    });
+    const endPt = (e) => {
+      if (!pts.delete(e.pointerId)) return;
+      if (pts.size < 2) { lastDist = 0; lastMid = null; }
+      if (pts.size === 0) {
+        if (moved > 4) {
+          suppressClick = true; // the click right after a drag isn't a tap
+          setTimeout(() => { suppressClick = false; }, 150);
+        }
+        dragging = false;
+      }
+    };
+    window.addEventListener("pointerup", endPt);
+    window.addEventListener("pointercancel", endPt);
+    syncUI();
+    return { isDragging: () => dragging, clickSuppressed: () => suppressClick };
+  })();
+
   /* ---------- map tooltip ---------- */
   const wrap = $("#map-wrap");
   const tip = $("#map-tooltip");
@@ -215,6 +323,7 @@
     tip.style.top = Math.max(4, topPos) + "px";
   };
   svg.addEventListener("pointermove", (e) => {
+    if (mapView.isDragging()) { tip.hidden = true; return; }
     const t = e.target.closest("[data-cc]");
     if (!t) { tip.hidden = true; return; }
     fillTip(t.dataset.cc);
@@ -823,7 +932,7 @@
     $("#eb-done").addEventListener("click", exitEdit);
 
     mapSvg.addEventListener("click", (e) => {
-      if (!working) return;
+      if (!working || mapView.clickSuppressed()) return;
       const t = e.target.closest("[data-cc]");
       if (t) toggle(t.dataset.cc, { x: e.clientX, y: e.clientY });
     });

@@ -62,11 +62,16 @@
       <div class="card-head">
         <h2>The world through our lens</h2>
         <p class="sub">Countries shaded by how many of us have been. Hover for who's got the stamp.
-          Tiny countries appear as dots. <strong id="map-hint" class="map-hint"></strong></p>
+          Scroll or pinch to zoom, drag to pan. <strong id="map-hint" class="map-hint"></strong></p>
       </div>
       <div class="map-wrap" id="map-wrap">
         <svg id="map" role="img" aria-label="World map of countries visited by the group"></svg>
         <div id="map-tooltip" class="tooltip" role="status" hidden></div>
+        <div class="map-controls" aria-label="Map zoom controls">
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <button id="zoom-reset" type="button" aria-label="Reset view" hidden>⛶</button>
+        </div>
       </div>
       <div id="map-legend" class="map-legend" aria-label="Map legend"></div>
     </section>
