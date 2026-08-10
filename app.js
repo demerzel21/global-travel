@@ -79,7 +79,7 @@
     $("#edit-link").href = `https://github.com/${GROUP.repo}/edit/master/data/travelers.js`;
   }
 
-  /* ---------- data warnings ---------- */
+  /* ---------- data warnings & fresh-passport welcome ---------- */
   if (warnings.length) {
     const box = $("#data-warnings");
     box.hidden = false;
@@ -87,6 +87,19 @@
     w.appendChild(el("strong", null, "Heads up, a few country codes didn’t focus: "));
     w.appendChild(el("span", null, warnings.join(" · ")));
     box.appendChild(w);
+  }
+  if (N === 0) {
+    const box = $("#data-warnings");
+    box.hidden = false;
+    const s = el("div", "starter");
+    s.appendChild(el("strong", null, "🎞️ Fresh passport, blank map. "));
+    const span = el("span", null, "Scroll to ");
+    const a = el("a", null, "Update your stamps");
+    a.href = "#editor";
+    span.appendChild(a);
+    span.appendChild(document.createTextNode(", pick ➕ New member…, tap your countries, hit Save — and watch the map light up."));
+    s.appendChild(span);
+    box.appendChild(s);
   }
 
   /* ---------- KPI row ---------- */
@@ -227,6 +240,7 @@
 
   /* ---------- leaderboard ---------- */
   const lb = $("#leaderboard");
+  if (!members.length) lb.appendChild(el("p", "empty-note", "Nobody on the board yet — add yourself below 👇"));
   const lbMax = Math.max(1, ...members.map((m) => m.countries.length));
   for (const m of [...members].sort((a, b) => b.countries.length - a.countries.length)) {
     const row = el("div", "lb-row");
@@ -292,6 +306,9 @@
       chip.appendChild(el("span", null, `${flag(cc)} ${cname(cc)}`));
       overlap.appendChild(chip);
     }
+  } else if (N < 2) {
+    overlap.appendChild(el("p", "empty-note",
+      "This one needs at least two members — recruit the crew!"));
   } else {
     overlap.appendChild(el("p", "empty-note",
       `No country has all ${N} stamps yet — sounds like a group trip waiting to happen.`));
@@ -316,7 +333,9 @@
       gemsEl.appendChild(more);
     }
   } else {
-    gemsEl.appendChild(el("p", "empty-note", "No solo stamps — this crew travels as a pack."));
+    gemsEl.appendChild(el("p", "empty-note", visited.length
+      ? "No solo stamps — this crew travels as a pack."
+      : "No stamps anywhere yet — a blank roll of film, endless possibilities."));
   }
 
   /* ---------- crossing paths: pairwise heatmap + fun facts ---------- */
@@ -504,6 +523,7 @@
 
   /* ---------- crew polaroids ---------- */
   const crew = $("#members");
+  if (!members.length) crew.appendChild(el("p", "empty-note", "The crew shot is empty — be the first in the frame 📷"));
   members.forEach((m, i) => {
     const card = el("article", "polaroid");
     const photo = el("div", `p-photo g${i % 4}`, m.emoji);
@@ -1055,7 +1075,7 @@
   })();
 
   /* ---------- footer ---------- */
-  $("#foot-line").textContent =
-    `${N} photographers · ${visited.length} countries · ${stamps} stamps — built with ♥ and too many memory cards. ` +
-    `Updates itself from data/travelers.js.`;
+  $("#foot-line").textContent = N
+    ? `${N} photographer${N === 1 ? "" : "s"} · ${visited.length} countries · ${stamps} stamps — built with ♥ and too many memory cards. Updates itself from data/travelers.js.`
+    : "A blank passport, waiting for its first stamp — built with ♥ and too many memory cards.";
 })();
