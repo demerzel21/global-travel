@@ -15,7 +15,19 @@
     <p class="kicker">📸 A shared passport, kept in focus</p>
     <h1 id="group-name">The Group Passport</h1>
     <p id="group-tagline" class="tagline"></p>
+    <p id="identity-chip" class="id-chip" hidden></p>
   </header>
+
+  <dialog id="who-dialog" aria-labelledby="who-title">
+    <p class="kicker" id="who-kicker">📸 The group passport</p>
+    <h2 id="who-title">Who's behind the camera?</h2>
+    <p class="sub" id="who-sub"></p>
+    <div id="who-members" class="who-grid"></div>
+    <div class="who-alt">
+      <button id="who-new" class="btn primary" type="button">➕ I'm new — add me</button>
+      <button id="who-guest" class="btn" type="button">👀 Just looking</button>
+    </div>
+  </dialog>
 
   <main>
     <div id="data-warnings" hidden></div>
@@ -25,7 +37,8 @@
     <section class="card map-card">
       <div class="card-head">
         <h2>The world through our lens</h2>
-        <p class="sub">Countries shaded by how many of us have been. Hover for who's got the stamp. Tiny countries appear as dots.</p>
+        <p class="sub">Countries shaded by how many of us have been. Hover for who's got the stamp.
+          Tiny countries appear as dots. <strong id="map-hint" class="map-hint"></strong></p>
       </div>
       <div class="map-wrap" id="map-wrap">
         <svg id="map" role="img" aria-label="World map of countries visited by the group"></svg>
@@ -36,7 +49,7 @@
 
     <section class="card editor-card" id="editor">
       <div class="card-head">
-        <h2>Update your stamps ✍️</h2>
+        <h2 id="ed-title">Update your stamps ✍️</h2>
         <p class="sub">Pick who you are, then tap countries on the map above — or search them here —
           to add and remove. Hit 💾 Save when you're done and a robot commits it for you. No code needed.</p>
       </div>

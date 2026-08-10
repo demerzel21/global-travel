@@ -613,8 +613,17 @@
     }
   };
 
+  /* ---------- identity: who this device belongs to ---------- */
+  const ID_KEY = "group-passport-identity";
+  const getIdentity = () => {
+    try { return JSON.parse(localStorage.getItem(ID_KEY)); } catch { return null; }
+  };
+  const setIdentity = (v) => {
+    try { v ? localStorage.setItem(ID_KEY, JSON.stringify(v)) : localStorage.removeItem(ID_KEY); } catch {}
+  };
+
   /* ---------- passport editor ---------- */
-  (function editor() {
+  const editorAPI = (function editor() {
     const whoSel = $("#ed-who");
     const searchRow = $("#ed-search-row");
     const searchIn = $("#ed-search");
@@ -836,6 +845,10 @@
       $("#ed-more").hidden = false;
       output.hidden = true;
       mapSvg.classList.add("editing");
+      $("#ed-title").textContent = isNew ? "Add yourself ✍️" : `${m.emoji} ${m.name} — your stamps ✍️`;
+      $("#map-hint").textContent = isNew
+        ? "Tap countries you’ve been to — they save below."
+        : `Tap countries to update ${m.name}’s stamps — changes save below.`;
       refresh();
     };
     whoSel.addEventListener("change", () => selectWho(whoSel.value));
@@ -1039,6 +1052,7 @@
         if (!res.ok) throw new Error(`GitHub rejected the save (HTTP ${res.status}). Check the token’s Contents permission.`);
         clearDraft();
         baseline = new Set(working);
+        setIdentity({ type: "member", name: myEntry().name });
         renderChips();
         renderStatus("Saved ✓");
         showToast("💾", "Saved to GitHub", "Your stamps are committed — the live site updates itself in about a minute.");
@@ -1051,6 +1065,7 @@
     /* zero-setup save: a pre-filled GitHub issue that a repo workflow applies */
     const ghIssueSave = () => {
       const me = myEntry();
+      setIdentity({ type: "member", name: me.name });
       const title = `[stamps] ${me.name} — ${me.countries.length} ${me.countries.length === 1 ? "country" : "countries"}`;
       const bodyText =
         "This issue updates the group passport — just press **Submit new issue** below.\n" +
@@ -1072,6 +1087,73 @@
     newFieldIds.forEach((id) => $("#" + id).addEventListener("input", saveDraft));
     updateAuthUI();
     restoreDraft();
+    return {
+      selectWho,
+      hasSelection: () => whoSel.value !== "",
+      focusName: () => $("#ed-name").focus(),
+    };
+  })();
+
+  /* ---------- identity prompt: ask on open unless we silently know you ---------- */
+  (function identity() {
+    const dlg = $("#who-dialog");
+    if (!dlg || !dlg.showModal) return;
+    if (typeof GROUP !== "undefined" && GROUP.name) $("#who-kicker").textContent = `📸 ${GROUP.name}`;
+
+    const applyIdentityUI = (idx) => {
+      const m = members[idx];
+      const chip = $("#identity-chip");
+      chip.hidden = false;
+      chip.textContent = "";
+      chip.appendChild(el("span", null, `📷 You’re ${m.emoji} ${m.name}`));
+      const sw = el("button", "id-switch", "not you?");
+      sw.type = "button";
+      sw.addEventListener("click", () => { setIdentity(null); showWhoDialog(); });
+      chip.appendChild(sw);
+      // pre-arm the editor so tapping the map just works (unless a draft already did)
+      if (!editorAPI.hasSelection()) editorAPI.selectWho(String(idx));
+      const row = [...document.querySelectorAll(".lb-name")].find((n) => n.textContent.includes(m.name));
+      if (row && !row.querySelector(".you-badge")) row.appendChild(el("span", "you-badge", "· you"));
+    };
+
+    const showWhoDialog = () => {
+      const grid = $("#who-members");
+      grid.textContent = "";
+      members.forEach((m, i) => {
+        const b = el("button", "who-btn");
+        b.type = "button";
+        b.appendChild(el("span", "who-emoji", m.emoji));
+        b.appendChild(el("span", null, m.name));
+        b.addEventListener("click", () => {
+          setIdentity({ type: "member", name: m.name });
+          dlg.close();
+          applyIdentityUI(i);
+        });
+        grid.appendChild(b);
+      });
+      grid.hidden = !members.length;
+      $("#who-sub").textContent = members.length
+        ? "One tap and the page sets itself up for you — tap countries on the map, hit Save."
+        : "Nobody’s aboard yet — be the first stamp in the passport.";
+      dlg.showModal();
+    };
+
+    $("#who-new").addEventListener("click", () => {
+      dlg.close();
+      editorAPI.selectWho("new");
+      $("#editor").scrollIntoView({ behavior: "smooth", block: "start" });
+      setTimeout(() => editorAPI.focusName(), 450);
+    });
+    $("#who-guest").addEventListener("click", () => {
+      setIdentity({ type: "guest" });
+      dlg.close();
+    });
+
+    const id = getIdentity();
+    const idx = id && id.type === "member" ? members.findIndex((m) => m.name === id.name) : -1;
+    if (idx >= 0) applyIdentityUI(idx);           // silently known — no prompt
+    else if (!id || id.type !== "guest") showWhoDialog(); // unknown (or stale member) — ask
+    // guests are remembered too: never nag them again
   })();
 
   /* ---------- footer ---------- */
