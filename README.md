@@ -44,13 +44,13 @@ of the same file.
 
 ## 🚀 Hosting on GitHub Pages
 
-Deployment is automatic: `.github/workflows/pages.yml` builds and publishes
-the site to GitHub Pages on every push to `master` (it also enables Pages on
-first run). The site lives at `https://<owner>.github.io/<repo>/`, and every
-merged change to `data/travelers.js` redeploys it within a minute or two.
+Deployment is automatic: `.github/workflows/pages.yml` mirrors every push to
+`master` onto the `gh-pages` branch, which GitHub Pages serves. The site lives
+at `https://<owner>.github.io/<repo>/`, and every merged change to
+`data/travelers.js` redeploys it within a minute or two.
 
 If Actions are disabled for the repo, the manual alternative still works:
-**Settings → Pages → Deploy from a branch → master / (root)**.
+**Settings → Pages → Deploy from a branch → gh-pages / (root)**.
 
 ## 🗺️ What's on the page
 
