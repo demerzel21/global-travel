@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Group Passport</title>
+  <meta name="description" content="A travel map and shared passport for our photography crew — every country we've shot, on one page." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="filmstrip" aria-hidden="true"></div>
+
+  <header class="site-head">
+    <p class="kicker">📸 A shared passport, kept in focus</p>
+    <h1 id="group-name">The Group Passport</h1>
+    <p id="group-tagline" class="tagline"></p>
+  </header>
+
+  <main>
+    <div id="data-warnings" hidden></div>
+
+    <section id="kpis" class="kpis" aria-label="Group stats"></section>
+
+    <section class="card map-card">
+      <div class="card-head">
+        <h2>The world through our lens</h2>
+        <p class="sub">Countries shaded by how many of us have been. Hover for who's got the stamp. Tiny countries appear as dots.</p>
+      </div>
+      <div class="map-wrap" id="map-wrap">
+        <svg id="map" role="img" aria-label="World map of countries visited by the group"></svg>
+        <div id="map-tooltip" class="tooltip" role="status" hidden></div>
+      </div>
+      <div id="map-legend" class="map-legend" aria-label="Map legend"></div>
+    </section>
+
+    <div class="grid-2">
+      <section class="card">
+        <div class="card-head">
+          <h2>Leaderboard</h2>
+          <p class="sub">Countries per member — bragging rights, quantified.</p>
+        </div>
+        <div id="leaderboard" class="leaderboard"></div>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>Continent checklist</h2>
+          <p class="sub">How much of each continent we've covered, by UN country count.</p>
+        </div>
+        <div id="continents" class="continents"></div>
+      </section>
+    </div>
+
+    <div class="grid-2">
+      <section class="card">
+        <div class="card-head">
+          <h2>Full-house stamps 🃏</h2>
+          <p class="sub">Every single one of us has been here.</p>
+        </div>
+        <div id="overlap" class="chips"></div>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>Hidden gems 💎</h2>
+          <p class="sub">Countries only one of us has seen — for now.</p>
+        </div>
+        <div id="gems" class="chips"></div>
+      </section>
+    </div>
+
+    <section class="crew-section">
+      <h2 class="section-title">The crew</h2>
+      <div id="members" class="members"></div>
+    </section>
+
+    <details class="card table-card">
+      <summary>🗂️ Every stamp in the passport — the full table</summary>
+      <div id="table" class="table-scroll"></div>
+    </details>
+
+    <section class="card join-card">
+      <div class="card-head">
+        <h2>Join the group photo 🙋</h2>
+      </div>
+      <ol class="join-steps">
+        <li>Open <a id="edit-link" href="#" rel="noopener">
+          <code>data/travelers.js</code> on GitHub</a> and hit the ✏️ pencil.</li>
+        <li>Copy any block, then make it yours — name, emoji, camera, and the
+          two-letter code of every country you've set foot in.</li>
+        <li>Commit. That's it — the page updates as soon as your change lands.</li>
+      </ol>
+      <p class="sub">Country codes are the same two letters as internet domains
+        (<code>FR</code>, <code>JP</code>, <code>BR</code>…) — the full list is in
+        the table above, and typos get flagged at the top of the page.</p>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <p id="foot-line"></p>
+  </footer>
+
+  <script src="assets/countries.js"></script>
+  <script src="assets/world-map.js"></script>
+  <script src="data/travelers.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
