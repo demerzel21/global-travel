@@ -67,7 +67,9 @@
         <button id="ed-reset" class="btn" type="button">↩️ Reset</button>
       </div>
       <div id="ed-token-panel" class="ed-token" hidden>
-        <p><strong>One-time setup for one-tap saving</strong> — takes about a minute:</p>
+        <p><strong>Optional power-up:</strong> 💾 Save already works with just a GitHub login
+          (it opens a pre-filled issue — one more tap). Connecting a token makes saves
+          instant, with no extra tap. One-time setup, about a minute:</p>
         <ol>
           <li><a id="ed-token-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a fine-grained GitHub token ↗</a></li>
           <li>Repository access → <em>Only select repositories</em> → pick this repo.</li>
@@ -161,12 +163,13 @@
         <li>Scroll to <a href="#editor"><strong>Update your stamps</strong></a>, pick yourself —
           or <strong>➕ New member…</strong> — and tap countries on the map (or search them)
           to add and remove. Your edits auto-save as a draft on this device.</li>
-        <li>First time only: hit <strong>🔗 Connect GitHub</strong> (a one-minute token setup).
-          From then on, <strong>💾 Save to GitHub</strong> commits your stamps directly —
-          the site redeploys itself in about a minute.</li>
-        <li>Not connecting? <strong>📋 Copy updated travelers.js</strong> and paste it over
-          <a id="edit-link" href="#" rel="noopener">the file on GitHub</a>, or send the
-          ⬇️ download to someone in the crew who can.</li>
+        <li>Hit <strong>💾 Save to GitHub</strong> and press <em>Submit new issue</em> on the
+          page that opens — a robot commits it, closes the issue, and the site updates itself.
+          Any GitHub login works; no repo access or setup needed.</li>
+        <li>Optional: <strong>⚡ connect GitHub</strong> once for instant, no-extra-tap saves —
+          or <strong>📋 copy</strong> the file and paste it over
+          <a id="edit-link" href="#" rel="noopener">the original on GitHub</a> if you'd
+          rather not use GitHub at all (send it to someone who does).</li>
       </ol>
       <p class="sub">Prefer editing by hand? The file is plain JavaScript and country codes are
         the same two letters as internet domains (<code>FR</code>, <code>JP</code>,

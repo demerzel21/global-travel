@@ -1,0 +1,53 @@
+name: Save stamps from issues
+
+# The site's Save button opens a pre-filled "[stamps]" issue; this workflow
+# validates it, updates data/travelers.js, deploys, and closes the issue.
+# Members only need a GitHub login — no repo access, no tokens.
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: save-stamps
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: startsWith(github.event.issue.title, '[stamps]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: apply
+        run: node tools/apply-stamps.mjs
+      - name: Commit and deploy
+        if: steps.apply.outputs.ok == 'true'
+        env:
+          NAME: ${{ steps.apply.outputs.name }}
+          COUNT: ${{ steps.apply.outputs.count }}
+          NUM: ${{ github.event.issue.number }}
+          LOGIN: ${{ github.event.issue.user.login }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/travelers.js
+          git commit -m "Update stamps: $NAME ($COUNT countries) — issue #$NUM by @$LOGIN" || echo "nothing to commit"
+          for i in 1 2 3; do git push && break; git pull --rebase; done
+          git push origin HEAD:gh-pages --force
+      - name: Reply and close
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OK: ${{ steps.apply.outputs.ok }}
+          MSG: ${{ steps.apply.outputs.msg }}
+          NUM: ${{ github.event.issue.number }}
+        run: |
+          if [ "$OK" = "true" ]; then
+            gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body "✅ Stamps saved! The site updates itself in about a minute. 📸✈️"
+          else
+            gh issue comment "$NUM" --repo "$GITHUB_REPOSITORY" --body "❌ Couldn't apply this one: $MSG"
+          fi
+          gh issue close "$NUM" --repo "$GITHUB_REPOSITORY"

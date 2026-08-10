@@ -691,7 +691,13 @@
       let d = null;
       try { d = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch {}
       if (!d || !d.who || !Array.isArray(d.countries)) return;
-      if (d.who !== "new" && !members[Number(d.who)]) { clearDraft(); return; }
+      if (d.who !== "new") {
+        const m = members[Number(d.who)];
+        if (!m) { clearDraft(); return; }
+        const saved = new Set(m.countries);
+        // draft already matches saved data (e.g. the robot committed it) — nothing to restore
+        if (d.countries.length === saved.size && d.countries.every((cc) => saved.has(cc))) { clearDraft(); return; }
+      }
       selectWho(d.who);
       if (d.who === "new" && d.fields) newFieldIds.forEach((id, i) => { $("#" + id).value = d.fields[i] || ""; });
       working = new Set(d.countries.filter((cc) => COUNTRIES[cc]));
@@ -926,10 +932,9 @@
     const tokenPanel = $("#ed-token-panel");
     const updateAuthUI = () => {
       const has = !!getToken();
-      saveBtn.hidden = !has;
-      connectBtn.textContent = has ? "🔗 GitHub connected" : "🔗 Connect GitHub for one-tap saving…";
+      saveBtn.hidden = false;
+      connectBtn.textContent = has ? "🔗 GitHub connected (instant saves)" : "⚡ Instant saves: connect GitHub…";
       $("#ed-token-remove").hidden = !has;
-      $("#ed-copy").classList.toggle("primary", !has);
     };
     connectBtn.addEventListener("click", () => { tokenPanel.hidden = !tokenPanel.hidden; });
     $("#ed-token-save").addEventListener("click", () => {
@@ -1010,7 +1015,26 @@
         saveBtn.disabled = false;
       }
     };
-    saveBtn.addEventListener("click", ghSave);
+    /* zero-setup save: a pre-filled GitHub issue that a repo workflow applies */
+    const ghIssueSave = () => {
+      const me = myEntry();
+      const title = `[stamps] ${me.name} — ${me.countries.length} ${me.countries.length === 1 ? "country" : "countries"}`;
+      const bodyText =
+        "This issue updates the group passport — just press **Submit new issue** below.\n" +
+        "A workflow commits it automatically, closes this issue, and the site updates itself " +
+        "about a minute later.\n\n```json\n" + JSON.stringify(me, null, 2) + "\n```\n";
+      const url = `https://github.com/${repo}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(bodyText)}`;
+      const w = window.open(url, "_blank", "noopener");
+      statusEl.textContent = "One more tap: press “Submit new issue” in the tab that opened — a robot does the rest. ";
+      if (!w) {
+        const a = el("a", null, "Open GitHub to finish saving ↗");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        statusEl.appendChild(a);
+      }
+    };
+    saveBtn.addEventListener("click", () => (getToken() ? ghSave() : ghIssueSave()));
 
     newFieldIds.forEach((id) => $("#" + id).addEventListener("input", saveDraft));
     updateAuthUI();

@@ -18,16 +18,24 @@ The page has a built-in editor — **Update your stamps ✍️**, right under th
    in the search box — that's also how you add countries too small to tap,
    like Singapore). Your selection glows with an orange outline, and your
    in-progress edits auto-save as a draft on your device.
-3. Save it:
-   - **One-tap (recommended):** hit **🔗 Connect GitHub** once — it walks you
-     through creating a [fine-grained token](https://github.com/settings/personal-access-tokens/new)
-     scoped to just this repo with *Contents: read & write*. The token lives
-     only in your browser's local storage. From then on **💾 Save to GitHub**
-     commits your stamps directly (merged against the latest file, so two
-     people saving at once don't overwrite each other) and the site redeploys
-     itself in about a minute.
-   - **No token:** **📋 Copy updated travelers.js**, open the file on GitHub,
-     paste over everything, commit. Same result.
+3. Save it — three tiers, least friction first:
+   - **Default (any GitHub login, zero setup):** hit **💾 Save to GitHub** —
+     it opens a pre-filled GitHub issue; press *Submit new issue* and a
+     workflow (`.github/workflows/save-stamps.yml`) validates it, commits it,
+     deploys, and closes the issue. No repo access or tokens needed.
+   - **⚡ Instant saves (optional):** connect a
+     [fine-grained token](https://github.com/settings/personal-access-tokens/new)
+     once (scoped to just this repo, *Contents: read & write*, stored only in
+     your browser). Saves then commit directly, merged against the latest
+     file so simultaneous edits don't overwrite each other. Requires push
+     access to the repo.
+   - **No GitHub at all:** **📋 Copy updated travelers.js** and send it to
+     someone in the crew, or paste it over the file on GitHub yourself.
+
+Anyone with a GitHub account can save via the issue path on a public repo —
+handy for a friends group, and every change is an attributed commit you can
+revert. If that's ever too open, require approval by adding an allowlist
+check to `save-stamps.yml`.
 
 Prefer editing by hand? [`data/travelers.js`](data/travelers.js) is plain
 JavaScript — copy an existing block and make it yours:
