@@ -50,6 +50,7 @@
 
 /* ---------- base ---------- */
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--page);
@@ -95,6 +96,8 @@ main       { max-width: 1060px; margin: 0 auto; padding: 8px 20px 40px; display:
 .card h2 { font-size: 19px; }
 .sub { color: var(--ink-2); font-size: 14px; margin: 4px 0 0; }
 .grid-2 { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; align-items: start; }
+/* let cards shrink below their content's intrinsic width (scrollable map/heatmap) */
+main > *, .grid-2 > * { min-width: 0; }
 @media (max-width: 760px) { .grid-2 { grid-template-columns: 1fr; } }
 
 /* ---------- warnings ---------- */
@@ -130,8 +133,14 @@ main       { max-width: 1060px; margin: 0 auto; padding: 8px 20px 40px; display:
 @media (max-width: 500px) { .stat.hero { grid-column: span 1; } }
 
 /* ---------- map ---------- */
-.map-wrap { position: relative; }
-#map { display: block; width: 100%; height: auto; }
+.map-wrap { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#map { display: block; width: 100%; height: auto; touch-action: manipulation; }
+#map.editing [data-cc] { cursor: pointer; }
+.country.mine, .cdot.mine {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
 .country {
   fill: var(--map-empty);
   stroke: var(--surface);
@@ -190,6 +199,66 @@ main       { max-width: 1060px; margin: 0 auto; padding: 8px 20px 40px; display:
 .ct-fill { height: 100%; background: var(--series); border-radius: 5px 0 0 5px; }
 .ct-val { color: var(--ink-2); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
 .ct-extra { color: var(--ink-2); font-size: 13.5px; margin: 2px 0 0; }
+
+/* ---------- passport editor ---------- */
+.ed-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+.ed-label { font-size: 14.5px; font-weight: 600; }
+.ed-new { display: contents; }
+select, .editor-card input[type="text"] {
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--baseline);
+  border-radius: 9px;
+  padding: 8px 11px;
+}
+select:focus-visible, .editor-card input:focus-visible, .btn:focus-visible {
+  outline: 2px solid var(--series);
+  outline-offset: 1px;
+}
+#ed-search { flex: 1 1 200px; min-width: 160px; }
+.ed-status { font-size: 13.5px; color: var(--ink-2); }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 14px; font-weight: 600;
+  color: var(--ink);
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+.btn:hover { filter: brightness(0.97); }
+.btn.primary { background: var(--series); border-color: var(--series); color: #fff; }
+.ed-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.chips .chip button {
+  all: unset;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  padding: 3px 4px;
+  border-radius: 50%;
+}
+.chips .chip button:hover, .chips .chip button:focus-visible { color: var(--ink); background: var(--map-empty); }
+.chip.added { border-color: var(--accent); }
+.ed-output { margin-top: 14px; }
+.ed-output summary { cursor: pointer; font-size: 14px; color: var(--ink-2); }
+.ed-output textarea {
+  width: 100%;
+  height: 220px;
+  margin-top: 10px;
+  font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink);
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  resize: vertical;
+}
 
 /* ---------- crossing-paths heatmap ---------- */
 .hm-wrap { position: relative; overflow-x: auto; }
@@ -294,6 +363,19 @@ th { color: var(--ink-2); font-weight: 600; position: sticky; top: 0; background
 td.center, th.center { text-align: center; }
 td.num { font-variant-numeric: tabular-nums; text-align: center; color: var(--ink-2); }
 .tick { color: var(--series); font-weight: 700; }
+
+/* ---------- small screens ---------- */
+@media (max-width: 600px) {
+  .card { padding: 16px; }
+  .site-head { padding-top: 30px; }
+  .stat.hero .value { font-size: 44px; }
+  .stat .value { font-size: 26px; }
+  .lb-row { grid-template-columns: 96px 1fr; }
+  .ct-row { grid-template-columns: 96px 1fr 54px; }
+  /* map stays big enough to tap — pan sideways inside the card */
+  #map { min-width: 640px; }
+  .ed-actions .btn { flex: 1 1 auto; justify-content: center; }
+}
 
 /* ---------- join / footer ---------- */
 .join-steps { margin: 0; padding-left: 22px; display: grid; gap: 6px; font-size: 15px; }

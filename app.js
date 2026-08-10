@@ -179,11 +179,12 @@
   };
   const placeTip = (x, y) => {
     const r = wrap.getBoundingClientRect();
+    const sx = wrap.scrollLeft;
     tip.hidden = false;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
-    let left = x - r.left + 14;
+    let left = x - r.left + sx + 14;
     let topPos = y - r.top + 14;
-    if (left + tw > r.width - 4) left = x - r.left - tw - 14;
+    if (left + tw > sx + r.width - 4) left = x - r.left + sx - tw - 14;
     if (topPos + th > r.height - 4) topPos = y - r.top - th - 14;
     tip.style.left = Math.max(4, left) + "px";
     tip.style.top = Math.max(4, topPos) + "px";
@@ -384,10 +385,11 @@
     };
     const placeHmTip = (x, y) => {
       const r = hmWrap.getBoundingClientRect();
+      const sx = hmWrap.scrollLeft;
       hmTip.hidden = false;
       const tw = hmTip.offsetWidth, th = hmTip.offsetHeight;
-      let left = x - r.left + 14, topPos = y - r.top + 14;
-      if (left + tw > r.width - 4) left = x - r.left - tw - 14;
+      let left = x - r.left + sx + 14, topPos = y - r.top + 14;
+      if (left + tw > sx + r.width - 4) left = x - r.left + sx - tw - 14;
       if (topPos + th > r.height - 4) topPos = y - r.top - th - 14;
       hmTip.style.left = Math.max(4, left) + "px";
       hmTip.style.top = Math.max(4, topPos) + "px";
@@ -505,6 +507,211 @@
   }
   table.appendChild(tbody);
   tableWrap.appendChild(table);
+
+  /* ---------- passport editor ---------- */
+  (function editor() {
+    const whoSel = $("#ed-who");
+    const searchRow = $("#ed-search-row");
+    const searchIn = $("#ed-search");
+    const statusEl = $("#ed-status");
+    const chipsEl = $("#ed-chips");
+    const actions = $("#ed-actions");
+    const output = $("#ed-output");
+    const outText = $("#ed-text");
+    const mapSvg = $("#map");
+    const repo = (typeof GROUP !== "undefined" && GROUP.repo) || "";
+    if (repo) $("#ed-open").href = `https://github.com/${repo}/edit/master/data/travelers.js`;
+
+    // country name → code lookup + datalist for the search inputs
+    const byName = new Map();
+    const datalist = $("#country-list");
+    for (const [cc, c] of Object.entries(COUNTRIES)) {
+      byName.set(c.name.toLowerCase(), cc);
+      const o = el("option");
+      o.value = c.name;
+      datalist.appendChild(o);
+    }
+    const resolveCountry = (q) => {
+      q = String(q || "").trim();
+      if (!q) return null;
+      if (q.length === 2 && COUNTRIES[q.toUpperCase()]) return q.toUpperCase();
+      return byName.get(q.toLowerCase()) || null;
+    };
+
+    // who am I
+    const ph = el("option", null, "choose yourself…");
+    ph.value = ""; ph.disabled = true; ph.selected = true;
+    whoSel.appendChild(ph);
+    members.forEach((m, i) => {
+      const o = el("option", null, `${m.emoji} ${m.name}`);
+      o.value = String(i);
+      whoSel.appendChild(o);
+    });
+    const optNew = el("option", null, "➕ New member…");
+    optNew.value = "new";
+    whoSel.appendChild(optNew);
+
+    let working = null;      // Set of ccs being edited
+    let baseline = new Set();
+    let isNew = false;
+
+    const applyMine = () => {
+      mapSvg.querySelectorAll(".mine").forEach((n) => n.classList.remove("mine"));
+      mapSvg.querySelectorAll("[data-temp]").forEach((n) => n.remove());
+      if (!working) return;
+      for (const cc of working) {
+        let n = mapSvg.querySelector(`[data-cc="${cc}"]`);
+        if (!n) {
+          const meta = COUNTRIES[cc];
+          if (!meta || meta.x == null) continue;
+          n = document.createElementNS(SVGNS, "circle");
+          n.setAttribute("cx", meta.x);
+          n.setAttribute("cy", meta.y);
+          n.setAttribute("r", "4.5");
+          n.setAttribute("class", "cdot");
+          n.style.fill = "var(--map-empty)";
+          n.dataset.cc = cc;
+          n.dataset.temp = "1";
+          mapSvg.appendChild(n);
+        }
+        n.classList.add("mine");
+      }
+    };
+    const renderChips = () => {
+      chipsEl.textContent = "";
+      if (!working) return;
+      for (const cc of [...working].sort((a, b) => cname(a).localeCompare(cname(b)))) {
+        const chip = el("span", baseline.has(cc) ? "chip" : "chip added");
+        chip.appendChild(el("span", null, `${flag(cc)} ${cname(cc)}`));
+        const x = el("button", null, "✕");
+        x.type = "button";
+        x.setAttribute("aria-label", `Remove ${cname(cc)}`);
+        x.addEventListener("click", () => toggle(cc));
+        chip.appendChild(x);
+        chipsEl.appendChild(chip);
+      }
+    };
+    const renderStatus = (msg) => {
+      if (msg != null) { statusEl.textContent = msg; return; }
+      if (!working) { statusEl.textContent = ""; return; }
+      const added = [...working].filter((cc) => !baseline.has(cc)).length;
+      const removed = [...baseline].filter((cc) => !working.has(cc)).length;
+      const delta = (added || removed) ? ` (+${added} −${removed} vs saved)` : "";
+      statusEl.textContent = `${working.size} ${working.size === 1 ? "country" : "countries"}${delta}`;
+    };
+    const refresh = () => { applyMine(); renderChips(); renderStatus(); };
+    const toggle = (cc) => {
+      if (!working) return;
+      working.has(cc) ? working.delete(cc) : working.add(cc);
+      refresh();
+    };
+
+    whoSel.addEventListener("change", () => {
+      isNew = whoSel.value === "new";
+      $("#ed-newfields").hidden = !isNew;
+      const m = isNew ? null : members[Number(whoSel.value)];
+      baseline = new Set(m ? m.countries : []);
+      working = new Set(baseline);
+      searchRow.hidden = false;
+      actions.hidden = false;
+      output.hidden = true;
+      mapSvg.classList.add("editing");
+      refresh();
+    });
+    mapSvg.addEventListener("click", (e) => {
+      if (!working) return;
+      const t = e.target.closest("[data-cc]");
+      if (t) toggle(t.dataset.cc);
+    });
+    const addFromSearch = () => {
+      const cc = resolveCountry(searchIn.value);
+      if (!cc) {
+        renderStatus(`Hmm, “${searchIn.value.trim()}” isn’t focusing — try the full country name.`);
+        return;
+      }
+      searchIn.value = "";
+      if (working.has(cc)) { renderStatus(`${cname(cc)} is already in your list.`); return; }
+      working.add(cc);
+      refresh();
+    };
+    $("#ed-add").addEventListener("click", addFromSearch);
+    searchIn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); addFromSearch(); }
+    });
+
+    // serialize the whole data file back out
+    const q = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    const HEADER =
+`// ✈️  THE GROUP PASSPORT — add yourself here!
+//
+// Easiest way: use the “Update your stamps ✍️” editor on the page itself —
+// pick yourself (or “New member”), tap countries on the map, hit Copy, and
+// paste the result over this whole file. This header and formatting are
+// regenerated for you.
+//
+// Editing by hand also works: countries are two-letter ISO 3166-1 codes,
+// the same letters as .fr / .jp internet domains. Typos are flagged in a
+// banner at the top of the page.
+
+`;
+    const fileText = () => {
+      const g = (typeof GROUP !== "undefined" && GROUP) || { name: "The Group Passport", tagline: "", repo: "" };
+      const mine = [...working].sort();
+      const list = members.map((m, i) => ({
+        ...m,
+        countries: (!isNew && Number(whoSel.value) === i) ? mine : m.countries,
+      }));
+      if (isNew) {
+        list.push({
+          name: $("#ed-name").value.trim() || "New Member",
+          emoji: $("#ed-emoji").value.trim() || "📷",
+          home: resolveCountry($("#ed-home").value) || "",
+          camera: $("#ed-camera").value.trim(),
+          favorite: resolveCountry($("#ed-fav").value) || "",
+          countries: mine,
+        });
+      }
+      let out = HEADER;
+      out += `const GROUP = {\n  name: ${q(g.name)},\n  tagline: ${q(g.tagline)},\n  repo: ${q(g.repo)},\n};\n\nconst TRAVELERS = [\n`;
+      for (const m of list) {
+        out += `  {\n    name: ${q(m.name)},\n    emoji: ${q(m.emoji)},\n    home: ${q(m.home)},\n    camera: ${q(m.camera)},\n    favorite: ${q(m.favorite)},\n    countries: [\n`;
+        for (let i = 0; i < m.countries.length; i += 10)
+          out += `      ${m.countries.slice(i, i + 10).map(q).join(", ")},\n`;
+        out += `    ],\n  },\n`;
+      }
+      out += `];\n`;
+      return out;
+    };
+    const showOutput = (text) => {
+      outText.value = text;
+      output.hidden = false;
+      output.open = true;
+    };
+    $("#ed-copy").addEventListener("click", () => {
+      const text = fileText();
+      outText.value = text;
+      output.hidden = false;
+      const done = () => renderStatus("Copied ✓ — now paste it over the whole file on GitHub.");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, () => {
+          showOutput(text);
+          renderStatus("Clipboard blocked — copy it from the box below.");
+        });
+      } else {
+        showOutput(text);
+        renderStatus("Copy it from the box below.");
+      }
+    });
+    $("#ed-download").addEventListener("click", () => {
+      const blob = new Blob([fileText()], { type: "text/javascript" });
+      const a = el("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "travelers.js";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      renderStatus("Downloaded — replace data/travelers.js with it.");
+    });
+  })();
 
   /* ---------- footer ---------- */
   $("#foot-line").textContent =

@@ -8,24 +8,31 @@ one of us has seen.
 **No build step, no database, no server.** It's plain HTML/CSS/JS, so it hosts
 for free on GitHub Pages, and adding yourself is a one-file edit.
 
-## ✨ Add yourself (the only thing you ever need to do)
+## ✨ Add yourself (no code needed)
 
-1. Open [`data/travelers.js`](data/travelers.js) on GitHub and click the ✏️ pencil.
-2. Copy an existing block and make it yours:
+The page has a built-in editor — **Update your stamps ✍️**, right under the map:
 
-   ```js
-   {
-     name: "Ansel",
-     emoji: "🏔️",                    // your avatar
-     home: "US",                      // ISO code of home country
-     camera: "Hasselblad 500C/M",
-     favorite: "IS",                  // favorite country to shoot
-     countries: ["US", "CA", "IS", "JP" /* … */],
-   },
-   ```
+1. Pick yourself from the dropdown, or **➕ New member…** and fill in your
+   name, emoji, and camera.
+2. **Tap countries on the map** to add or remove them (or type a country name
+   in the search box — that's also how you add countries too small to tap,
+   like Singapore). Your selection glows with an orange outline.
+3. Hit **📋 Copy updated travelers.js**, then **Open the file on GitHub ↗**,
+   paste over the whole file, and commit. Done — the site redeploys itself.
 
-3. Commit (or open a PR if the repo requires it). The page rebuilds itself on
-   every load — no deploy step.
+Prefer editing by hand? [`data/travelers.js`](data/travelers.js) is plain
+JavaScript — copy an existing block and make it yours:
+
+```js
+{
+  name: "Ansel",
+  emoji: "🏔️",                    // your avatar
+  home: "US",                      // ISO code of home country
+  camera: "Hasselblad 500C/M",
+  favorite: "IS",                  // favorite country to shoot
+  countries: ["US", "CA", "IS", "JP" /* … */],
+},
+```
 
 Country codes are [ISO 3166-1 alpha-2](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)
 — the same two letters as `.fr` / `.jp` internet domains. Typos are caught and
@@ -49,7 +56,10 @@ every merged change to `data/travelers.js` redeploys it automatically.
 ## 🗺️ What's on the page
 
 - **World map** — countries shaded by how many of us have been (hover for who);
-  countries too small for the map (Singapore, Malta, the Maldives…) show as dots
+  countries too small for the map (Singapore, Malta, the Maldives…) show as dots;
+  on phones the map stays large and pans sideways so countries remain tappable
+- **Update your stamps** — the in-page editor: tap countries on the map or
+  search by name to add/remove, then copy the regenerated data file to GitHub
 - **Group stats** — countries visited, % of the world's 193 UN countries,
   continents covered, total stamps, most-traveled member
 - **Leaderboard** — countries per member

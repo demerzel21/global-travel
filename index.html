@@ -34,6 +34,41 @@
       <div id="map-legend" class="map-legend" aria-label="Map legend"></div>
     </section>
 
+    <section class="card editor-card" id="editor">
+      <div class="card-head">
+        <h2>Update your stamps ✍️</h2>
+        <p class="sub">Pick who you are, then tap countries on the map above — or search them here —
+          to add and remove. When you're done, copy the file and paste it into GitHub. No code needed.</p>
+      </div>
+      <div class="ed-row">
+        <label class="ed-label" for="ed-who">I am</label>
+        <select id="ed-who"></select>
+        <span id="ed-newfields" class="ed-new" hidden>
+          <input id="ed-name" type="text" placeholder="Your name" size="12" />
+          <input id="ed-emoji" type="text" placeholder="Emoji" size="5" maxlength="8" />
+          <input id="ed-home" type="text" list="country-list" placeholder="Home country" size="13" />
+          <input id="ed-camera" type="text" placeholder="Your camera" size="16" />
+          <input id="ed-fav" type="text" list="country-list" placeholder="Favorite shoot" size="13" />
+        </span>
+      </div>
+      <div class="ed-row" id="ed-search-row" hidden>
+        <input id="ed-search" type="text" list="country-list" placeholder="Type a country to add…" />
+        <datalist id="country-list"></datalist>
+        <button id="ed-add" class="btn" type="button">Add</button>
+        <span id="ed-status" class="ed-status"></span>
+      </div>
+      <div id="ed-chips" class="chips"></div>
+      <div class="ed-actions" id="ed-actions" hidden>
+        <button id="ed-copy" class="btn primary" type="button">📋 Copy updated travelers.js</button>
+        <a id="ed-open" class="btn" href="#" target="_blank" rel="noopener">Open the file on GitHub ↗</a>
+        <button id="ed-download" class="btn" type="button">⬇️ Download</button>
+      </div>
+      <details id="ed-output" class="ed-output" hidden>
+        <summary>Show the generated file</summary>
+        <textarea id="ed-text" readonly spellcheck="false" aria-label="Generated travelers.js contents"></textarea>
+      </details>
+    </section>
+
     <div class="grid-2">
       <section class="card">
         <div class="card-head">
@@ -104,15 +139,18 @@
         <h2>Join the group photo 🙋</h2>
       </div>
       <ol class="join-steps">
-        <li>Open <a id="edit-link" href="#" rel="noopener">
-          <code>data/travelers.js</code> on GitHub</a> and hit the ✏️ pencil.</li>
-        <li>Copy any block, then make it yours — name, emoji, camera, and the
-          two-letter code of every country you've set foot in.</li>
+        <li>Scroll to <a href="#editor"><strong>Update your stamps</strong></a>, pick yourself —
+          or <strong>➕ New member…</strong> — and tap countries on the map (or search them)
+          to add and remove.</li>
+        <li>Hit <strong>📋 Copy updated travelers.js</strong>, then
+          <a id="edit-link" href="#" rel="noopener">open the file on GitHub</a>
+          and paste over everything.</li>
         <li>Commit. That's it — the page updates as soon as your change lands.</li>
       </ol>
-      <p class="sub">Country codes are the same two letters as internet domains
-        (<code>FR</code>, <code>JP</code>, <code>BR</code>…) — the full list is in
-        the table above, and typos get flagged at the top of the page.</p>
+      <p class="sub">Prefer editing by hand? The file is plain JavaScript and country codes are
+        the same two letters as internet domains (<code>FR</code>, <code>JP</code>,
+        <code>BR</code>…) — the full list is in the table above, and typos get flagged
+        at the top of the page.</p>
     </section>
   </main>
 

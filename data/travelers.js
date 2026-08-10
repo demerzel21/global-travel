@@ -1,18 +1,13 @@
 // ✈️  THE GROUP PASSPORT — add yourself here!
 //
-// This is the only file you need to touch. Copy one of the blocks below,
-// fill in your details, and commit. The page rebuilds itself on load.
+// Easiest way: use the “Update your stamps ✍️” editor on the page itself —
+// pick yourself (or “New member”), tap countries on the map, hit Copy, and
+// paste the result over this whole file. This header and formatting are
+// regenerated for you.
 //
-//   name      your name (or nickname)
-//   emoji     an emoji that is *so* you — it becomes your avatar
-//   home      two-letter ISO code of your home country (e.g. "US", "FR", "BR")
-//   camera    what you shoot with
-//   favorite  ISO code of your favorite country to photograph
-//   countries every country you've set foot in, as two-letter ISO codes
-//
-// Country codes are ISO 3166-1 alpha-2 — the same two letters as .fr / .jp
-// domains. The full list is in the table at the bottom of the page.
-// Typos are caught and listed at the top of the page, so guess bravely.
+// Editing by hand also works: countries are two-letter ISO 3166-1 codes,
+// the same letters as .fr / .jp internet domains. Typos are flagged in a
+// banner at the top of the page.
 
 const GROUP = {
   name: "The Focal Points",
