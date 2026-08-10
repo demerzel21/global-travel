@@ -748,7 +748,24 @@
       statusEl.textContent += " · draft restored from your last visit";
     };
 
-    const refresh = () => { applyMine(); renderChips(); renderStatus(); saveDraft(); };
+    /* onboarding steps: live check-off as you go */
+    const updateSteps = () => {
+      if (!working) return;
+      $("#ed-steps").hidden = false;
+      const mark = (sel, done) => {
+        const li = $(sel);
+        li.classList.toggle("done", done);
+        li.querySelector(".n").textContent = done ? "✓" : li.dataset.num;
+      };
+      mark("#step-who", !isNew || !!$("#ed-name").value.trim());
+      mark("#step-tap", working.size > 0);
+      $("#step-tap-label").textContent =
+        `Tap your countries on the map${working.size ? ` — ${working.size} so far` : ""}`;
+      const dirty = working.size !== baseline.size || [...working].some((cc) => !baseline.has(cc));
+      mark("#step-save", !isNew && working.size > 0 && !dirty);
+    };
+
+    const refresh = () => { applyMine(); renderChips(); renderStatus(); saveDraft(); updateSteps(); };
 
     /* selection effects: ripple + floating flag + brightness pop on the country */
     const fx = (cc, adding, pt) => {
@@ -1055,6 +1072,7 @@
         setIdentity({ type: "member", name: myEntry().name });
         renderChips();
         renderStatus("Saved ✓");
+        updateSteps();
         showToast("💾", "Saved to GitHub", "Your stamps are committed — the live site updates itself in about a minute.");
       } catch (e) {
         renderStatus(String((e && e.message) || e));
@@ -1084,7 +1102,20 @@
     };
     saveBtn.addEventListener("click", () => (getToken() ? ghSave() : ghIssueSave()));
 
-    newFieldIds.forEach((id) => $("#" + id).addEventListener("input", saveDraft));
+    newFieldIds.forEach((id) => $("#" + id).addEventListener("input", () => { saveDraft(); updateSteps(); }));
+    const emojiRow = $("#emoji-row");
+    for (const e of ["📷", "🎞️", "🏔️", "🌊", "🏜️", "🦁", "🌸", "🛩️", "🌋", "⛺", "🧭", "🌅"]) {
+      const b = el("button", "emoji-btn", e);
+      b.type = "button";
+      b.setAttribute("aria-label", `Use ${e} as your emoji`);
+      b.addEventListener("click", () => {
+        $("#ed-emoji").value = e;
+        emojiRow.querySelectorAll(".sel").forEach((x) => x.classList.remove("sel"));
+        b.classList.add("sel");
+        saveDraft();
+      });
+      emojiRow.appendChild(b);
+    }
     updateAuthUI();
     restoreDraft();
     return {

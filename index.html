@@ -53,16 +53,27 @@
         <p class="sub">Pick who you are, then tap countries on the map above — or search them here —
           to add and remove. Hit 💾 Save when you're done and a robot commits it for you. No code needed.</p>
       </div>
+      <ol id="ed-steps" class="ed-steps" hidden>
+        <li id="step-who" data-num="1"><span class="n">1</span><span>Say who you are</span></li>
+        <li id="step-tap" data-num="2"><span class="n">2</span><span id="step-tap-label">Tap your countries on the map</span></li>
+        <li id="step-save" data-num="3"><span class="n">3</span><span>Hit 💾 Save</span></li>
+      </ol>
       <div class="ed-row">
         <label class="ed-label" for="ed-who">I am</label>
         <select id="ed-who"></select>
-        <span id="ed-newfields" class="ed-new" hidden>
-          <input id="ed-name" type="text" placeholder="Your name" size="12" />
-          <input id="ed-emoji" type="text" placeholder="Emoji" size="5" maxlength="8" />
-          <input id="ed-home" type="text" list="country-list" placeholder="Home country" size="13" />
-          <input id="ed-camera" type="text" placeholder="Your camera" size="16" />
-          <input id="ed-fav" type="text" list="country-list" placeholder="Favorite shoot" size="13" />
-        </span>
+      </div>
+      <div id="ed-newfields" class="ed-new" hidden>
+        <label class="f"><span>Your name · required</span>
+          <input id="ed-name" type="text" placeholder="e.g. Felix" autocomplete="off" /></label>
+        <label class="f"><span>Home country</span>
+          <input id="ed-home" type="text" list="country-list" placeholder="United States" autocomplete="off" /></label>
+        <label class="f"><span>Your camera</span>
+          <input id="ed-camera" type="text" placeholder="Sony A7 IV" autocomplete="off" /></label>
+        <label class="f"><span>Favorite country to shoot</span>
+          <input id="ed-fav" type="text" list="country-list" placeholder="Japan" autocomplete="off" /></label>
+        <label class="f"><span>Your emoji — your avatar on the map</span>
+          <input id="ed-emoji" type="text" maxlength="8" placeholder="📷" autocomplete="off" /></label>
+        <div class="emoji-row" id="emoji-row" role="group" aria-label="Quick emoji picks"></div>
       </div>
       <div class="ed-row" id="ed-search-row" hidden>
         <input id="ed-search" type="text" list="country-list" placeholder="Type a country to add…" />

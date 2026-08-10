@@ -334,7 +334,44 @@ dialog#who-dialog::backdrop { background: rgba(10, 10, 10, 0.5); backdrop-filter
 /* ---------- passport editor ---------- */
 .ed-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
 .ed-label { font-size: 14.5px; font-weight: 600; }
-.ed-new { display: contents; }
+.ed-steps {
+  display: flex; flex-wrap: wrap; gap: 12px 22px;
+  list-style: none;
+  margin: 0 0 14px; padding: 11px 14px;
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13.5px;
+}
+.ed-steps li { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.ed-steps .n {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700;
+  background: var(--map-empty); color: var(--ink-2);
+  flex: none;
+}
+.ed-steps li.done { color: var(--ink); }
+.ed-steps li.done .n { background: var(--series); color: #fff; }
+.ed-new {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: 14px;
+}
+.ed-new label.f { display: grid; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.ed-new label.f input { width: 100%; }
+.emoji-row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.emoji-btn {
+  font-size: 20px; line-height: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 6px 9px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.emoji-btn:hover { border-color: var(--series); }
+.emoji-btn.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 select, .editor-card input[type="text"] {
   font: inherit;
   font-size: 14.5px;
