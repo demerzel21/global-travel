@@ -191,6 +191,48 @@ main       { max-width: 1060px; margin: 0 auto; padding: 8px 20px 40px; display:
 .ct-val { color: var(--ink-2); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
 .ct-extra { color: var(--ink-2); font-size: 13.5px; margin: 2px 0 0; }
 
+/* ---------- crossing-paths heatmap ---------- */
+.hm-wrap { position: relative; overflow-x: auto; }
+table.hm { border-collapse: separate; border-spacing: 3px; width: auto; }
+.hm th, .hm td { border: none; padding: 0; }
+.hm th {
+  position: static; background: transparent;
+  font-weight: 600; font-size: 13px; color: var(--ink-2);
+  padding: 4px 6px; text-align: center;
+}
+.hm th.rowh { text-align: right; white-space: nowrap; }
+.hm td {
+  width: 54px; height: 44px; text-align: center;
+  border-radius: 6px; font-size: 14.5px; font-weight: 650;
+  background: var(--map-empty); color: var(--muted);
+}
+.hm td.pair { cursor: pointer; }
+.hm td.pair:hover, .hm td.pair:focus-visible { filter: brightness(1.12); outline: none; }
+.hm td.self {
+  background: transparent; color: var(--muted); font-weight: 500;
+  box-shadow: inset 0 0 0 1px var(--grid);
+}
+/* in-cell ink flips with the fill's luminance, per mode */
+.hm td.b1 { background: var(--v1); color: #0b0b0b; }
+.hm td.b2 { background: var(--v2); color: #0b0b0b; }
+.hm td.b3 { background: var(--v3); color: #ffffff; }
+.hm td.b4 { background: var(--v4); color: #ffffff; }
+.hm td.b5 { background: var(--v5); color: #ffffff; }
+@media (prefers-color-scheme: dark) {
+  .hm td.b1 { color: #ffffff; }
+  .hm td.b2 { color: #ffffff; }
+  .hm td.b3 { color: #ffffff; }
+  .hm td.b4 { color: #0b0b0b; }
+  .hm td.b5 { color: #0b0b0b; }
+}
+
+/* ---------- fun facts ---------- */
+.facts { display: grid; gap: 14px; }
+.fact { display: flex; gap: 12px; align-items: flex-start; }
+.fact .f-emoji { font-size: 26px; line-height: 1.25; }
+.fact strong { display: block; font-size: 14.5px; }
+.fact p { margin: 2px 0 0; color: var(--ink-2); font-size: 13.5px; }
+
 /* ---------- chips (overlap / gems) ---------- */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {

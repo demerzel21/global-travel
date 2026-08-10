@@ -41,7 +41,7 @@ One-time setup by a repo admin:
 
 1. **Settings → Pages**
 2. Source: **Deploy from a branch**
-3. Branch: **main**, folder **/ (root)** → Save
+3. Branch: **master**, folder **/ (root)** → Save
 
 The site appears at `https://<owner>.github.io/<repo>/` a minute later, and
 every merged change to `data/travelers.js` redeploys it automatically.
@@ -56,6 +56,9 @@ every merged change to `data/travelers.js` redeploys it automatically.
 - **Continent checklist** — coverage meters per continent
 - **Full-house stamps** — countries every member has visited
 - **Hidden gems** — countries exactly one member has visited
+- **Crossing paths** — a member × member heatmap of shared countries (hover a
+  cell for the list) plus auto-computed fun facts: travel twins, opposite
+  itineraries, the dream team, the lone wolf, and the crew's connector
 - **The crew** — a polaroid card per member
 - **Table view** — the full country × member matrix (also the accessible,
   screen-reader-friendly twin of the map)

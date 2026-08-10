@@ -56,7 +56,7 @@
   }
   $("#group-tagline").textContent = (typeof GROUP !== "undefined" && GROUP.tagline) || "";
   if (typeof GROUP !== "undefined" && GROUP.repo) {
-    $("#edit-link").href = `https://github.com/${GROUP.repo}/edit/main/data/travelers.js`;
+    $("#edit-link").href = `https://github.com/${GROUP.repo}/edit/master/data/travelers.js`;
   }
 
   /* ---------- data warnings ---------- */
@@ -271,6 +271,188 @@
     }
   } else {
     gemsEl.appendChild(el("p", "empty-note", "No solo stamps — this crew travels as a pack."));
+  }
+
+  /* ---------- crossing paths: pairwise heatmap + fun facts ---------- */
+  const soloCount = new Map(members.map((m) => [m.name, 0]));
+  for (const cc of gems) {
+    const m = visitors.get(cc)[0];
+    soloCount.set(m.name, soloCount.get(m.name) + 1);
+  }
+  const pairStats = [];
+  for (let i = 0; i < N; i++)
+    for (let j = i + 1; j < N; j++) {
+      const a = members[i], b = members[j];
+      const shared = a.countries.filter((cc) => b.set.has(cc))
+        .sort((x, y) => cname(x).localeCompare(cname(y)));
+      const union = new Set([...a.countries, ...b.countries]).size;
+      pairStats.push({ a, b, shared, union });
+    }
+
+  if (N < 2) $("#pairs-section").hidden = true;
+  if (N >= 2) {
+    const maxShared = Math.max(1, ...pairStats.map((p) => p.shared.length));
+    const hmSize = maxShared > 5 ? Math.ceil(maxShared / 5) : 1;
+    const hmBin = (c) => {
+      if (maxShared <= 1) return 3;
+      if (maxShared <= 5) return 1 + Math.round(((c - 1) * 4) / (maxShared - 1));
+      return Math.min(5, Math.floor((c - 1) / hmSize) + 1);
+    };
+    const sharedOf = (a, b) =>
+      pairStats.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
+
+    const hm = el("table", "hm");
+    const hmHead = el("thead");
+    const hhr = el("tr");
+    hhr.appendChild(el("th"));
+    for (const m of members) {
+      const th = el("th", null, m.emoji);
+      th.title = m.name;
+      hhr.appendChild(th);
+    }
+    hmHead.appendChild(hhr);
+    hm.appendChild(hmHead);
+    const hmBody = el("tbody");
+    for (const a of members) {
+      const tr = el("tr");
+      tr.appendChild(el("th", "rowh", `${a.emoji} ${a.name}`));
+      for (const b of members) {
+        if (a === b) {
+          const td = el("td", "self", String(a.countries.length));
+          td.setAttribute("aria-label", `${a.name}: ${a.countries.length} countries total`);
+          tr.appendChild(td);
+          continue;
+        }
+        const s = sharedOf(a, b);
+        const n = s.shared.length;
+        const td = el("td", n ? `pair b${hmBin(n)}` : "pair", String(n));
+        td.dataset.pair = `${members.indexOf(a)}:${members.indexOf(b)}`;
+        td.setAttribute("tabindex", "0");
+        td.setAttribute("aria-label",
+          `${a.name} and ${b.name}: ${n} shared ${n === 1 ? "country" : "countries"}` +
+          (n ? ` — ${s.shared.map(cname).join(", ")}` : ""));
+        tr.appendChild(td);
+      }
+      hmBody.appendChild(tr);
+    }
+    hm.appendChild(hmBody);
+    $("#heatmap").appendChild(hm);
+
+    const hmLegend = $("#hm-legend");
+    const hmKey = (bg, label) => {
+      const k = el("span", "key");
+      const sw = el("span", "swatch");
+      sw.style.background = bg;
+      k.appendChild(sw);
+      k.appendChild(el("span", null, label));
+      hmLegend.appendChild(k);
+    };
+    hmKey("var(--map-empty)", "no shared stamps");
+    if (maxShared <= 5) {
+      const seenB = new Set();
+      for (let c = 1; c <= maxShared; c++) {
+        const b = hmBin(c);
+        if (seenB.has(b)) continue;
+        seenB.add(b);
+        hmKey(`var(--v${b})`, c === 1 ? "1 country" : `${c} countries`);
+      }
+    } else {
+      for (let b = 1; b <= 5; b++) {
+        const lo = (b - 1) * hmSize + 1;
+        const hi = Math.min(maxShared, b * hmSize);
+        if (lo > maxShared) break;
+        hmKey(`var(--v${b})`, lo === hi ? `${lo} countries` : `${lo}–${hi} countries`);
+      }
+    }
+
+    const hmWrap = $("#hm-wrap");
+    const hmTip = $("#hm-tooltip");
+    const fillHmTip = (a, b) => {
+      const s = sharedOf(a, b);
+      hmTip.textContent = "";
+      hmTip.appendChild(el("div", "t-name", `${a.emoji} ${a.name} × ${b.emoji} ${b.name}`));
+      if (s.shared.length) {
+        hmTip.appendChild(el("div", "t-count",
+          `${s.shared.length} shared ${s.shared.length === 1 ? "country" : "countries"}`));
+        const shown = s.shared.slice(0, 10);
+        hmTip.appendChild(el("div", "t-who",
+          shown.map((cc) => `${flag(cc)} ${cname(cc)}`).join(", ") +
+          (s.shared.length > shown.length ? ` +${s.shared.length - shown.length} more` : "")));
+      } else {
+        hmTip.appendChild(el("div", "t-count", "No overlap yet — two different planets 🪐"));
+      }
+    };
+    const placeHmTip = (x, y) => {
+      const r = hmWrap.getBoundingClientRect();
+      hmTip.hidden = false;
+      const tw = hmTip.offsetWidth, th = hmTip.offsetHeight;
+      let left = x - r.left + 14, topPos = y - r.top + 14;
+      if (left + tw > r.width - 4) left = x - r.left - tw - 14;
+      if (topPos + th > r.height - 4) topPos = y - r.top - th - 14;
+      hmTip.style.left = Math.max(4, left) + "px";
+      hmTip.style.top = Math.max(4, topPos) + "px";
+    };
+    const pairFromCell = (t) => {
+      const [ia, ib] = t.dataset.pair.split(":").map(Number);
+      return [members[ia], members[ib]];
+    };
+    hm.addEventListener("pointermove", (e) => {
+      const t = e.target.closest("td.pair");
+      if (!t) { hmTip.hidden = true; return; }
+      fillHmTip(...pairFromCell(t));
+      placeHmTip(e.clientX, e.clientY);
+    });
+    hm.addEventListener("pointerleave", () => { hmTip.hidden = true; });
+    hm.addEventListener("focusin", (e) => {
+      const t = e.target.closest("td.pair");
+      if (!t) return;
+      fillHmTip(...pairFromCell(t));
+      const b = t.getBoundingClientRect();
+      placeHmTip(b.left + b.width / 2, b.top + b.height / 2);
+    });
+    hm.addEventListener("focusout", () => { hmTip.hidden = true; });
+
+    /* fun facts */
+    const facts = $("#facts");
+    const fact = (emoji, title, text) => {
+      const f = el("div", "fact");
+      f.appendChild(el("span", "f-emoji", emoji));
+      const body = el("div");
+      body.appendChild(el("strong", null, title));
+      body.appendChild(el("p", null, text));
+      f.appendChild(body);
+      facts.appendChild(f);
+    };
+    const twins = [...pairStats].sort((x, y) => y.shared.length - x.shared.length)[0];
+    if (twins.shared.length) {
+      const pctSame = Math.round((twins.shared.length / twins.union) * 100);
+      fact("👯", "Travel twins",
+        `${twins.a.name} & ${twins.b.name} share ${twins.shared.length} stamps — their passports are ${pctSame}% identical.`);
+    }
+    const opposites = [...pairStats].sort((x, y) => x.shared.length - y.shared.length)[0];
+    if (opposites !== twins) {
+      fact("🧲", "Opposite itineraries",
+        opposites.shared.length === 0
+          ? `${opposites.a.name} & ${opposites.b.name} don’t share a single country — two different planets.`
+          : `${opposites.a.name} & ${opposites.b.name} overlap on just ${opposites.shared.length} ${opposites.shared.length === 1 ? "country" : "countries"} — swap itineraries, you two.`);
+    }
+    const dream = [...pairStats].sort((x, y) => y.union - x.union)[0];
+    fact("🌍", "The dream team",
+      `${dream.a.name} & ${dream.b.name} have covered ${dream.union} countries between them — the widest lens in the group.`);
+    const wolf = [...members].sort((x, y) => soloCount.get(y.name) - soloCount.get(x.name))[0];
+    if (soloCount.get(wolf.name) > 0)
+      fact("🐺", "Lone wolf",
+        `${wolf.name} holds ${soloCount.get(wolf.name)} solo stamps — countries no one else in the crew has seen.`);
+    const partnersOf = (m) => members.filter((o) =>
+      o !== m && sharedOf(m, o).shared.length > 0).length;
+    const glue = [...members].sort((x, y) => partnersOf(y) - partnersOf(x))[0];
+    if (partnersOf(glue) === N - 1 && members.every((m) => partnersOf(m) === N - 1)) {
+      fact("🤝", "Fully entangled",
+        "Every pair of us shares at least one country — a properly tangled crew.");
+    } else {
+      fact("🤝", "The connector",
+        `${glue.name} has crossed paths with ${partnersOf(glue)} of the other ${N - 1} — the crew’s connective tissue.`);
+    }
   }
 
   /* ---------- crew polaroids ---------- */
