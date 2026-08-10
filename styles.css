@@ -200,6 +200,71 @@ main > *, .grid-2 > * { min-width: 0; }
 .ct-val { color: var(--ink-2); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
 .ct-extra { color: var(--ink-2); font-size: 13.5px; margin: 2px 0 0; }
 
+/* ---------- selection effects & celebrations ---------- */
+.fx-ripple {
+  position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+  border-radius: 50%; border: 3px solid var(--accent);
+  pointer-events: none; z-index: 4;
+  animation: fx-ripple 0.65s ease-out forwards;
+}
+.fx-ripple.out { border-color: var(--muted); }
+@keyframes fx-ripple {
+  from { transform: scale(0.4); opacity: 0.95; }
+  to   { transform: scale(4);   opacity: 0; }
+}
+.fx-flag {
+  position: absolute; pointer-events: none; z-index: 4;
+  font-size: 19px; font-weight: 700;
+  animation: fx-float 0.9s ease-out forwards;
+}
+.fx-flag.out { filter: grayscale(1); animation-name: fx-sink; }
+@keyframes fx-float {
+  0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  20%  { opacity: 1; }
+  100% { transform: translate(-50%, -190%) scale(1.15); opacity: 0; }
+}
+@keyframes fx-sink {
+  0%   { transform: translate(-50%, -50%); opacity: 0.9; }
+  100% { transform: translate(-50%, 60%) scale(0.8); opacity: 0; }
+}
+.fx-pop { animation: fx-pop 0.45s ease-out; }
+@keyframes fx-pop { 30% { filter: brightness(1.65); } }
+.celebrate { animation: celebrate 1.7s ease-in-out; }
+@keyframes celebrate {
+  25%, 75% { filter: brightness(1.35); }
+  50%      { filter: brightness(1.75); }
+}
+.confetti {
+  position: fixed; top: 0; width: 9px; height: 14px;
+  border-radius: 2px; z-index: 60; pointer-events: none;
+}
+.toast-holder {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  display: grid; gap: 10px; z-index: 50; width: max-content; max-width: 94vw;
+}
+.toast {
+  display: flex; gap: 12px; align-items: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 18px; box-shadow: var(--shadow);
+  max-width: min(94vw, 430px);
+  animation: toast-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+.toast.gone { animation: toast-out 0.3s ease-in forwards; }
+.toast .t-emoji { font-size: 27px; }
+.toast strong { display: block; font-size: 15px; }
+.toast p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+@keyframes toast-in { from { transform: translateY(80px); opacity: 0; } }
+@keyframes toast-out { to { transform: translateY(30px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .fx-ripple, .fx-flag, .fx-pop, .celebrate, .confetti { animation: none; display: none; }
+  .toast { animation: none; }
+}
+
+/* completed continents & unlocked regions in the checklist */
+.ct-row.done .ct-fill { background: var(--accent); }
+.ct-row.done .ct-val { color: var(--ink); font-weight: 650; }
+.sub-head { font-size: 13.5px; font-weight: 650; color: var(--ink-2); margin: 12px 0 8px; }
+
 /* ---------- passport editor ---------- */
 .ed-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
 .ed-label { font-size: 14.5px; font-weight: 600; }

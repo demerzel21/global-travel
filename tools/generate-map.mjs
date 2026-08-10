@@ -74,6 +74,7 @@ for (const c of wc) {
   meta[cc] = {
     name: c.name.common,
     continent: continentOf(c),
+    sub: c.subregion || c.region || "",
     un: !!c.unMember && cc !== "VA", // world-countries mislabels Vatican City (UN observer, not member)
     flag: c.flag,
     ...(paths[cc] ? {} : pt ? { x: +pt[0].toFixed(1), y: +pt[1].toFixed(1) } : {}),
@@ -89,6 +90,6 @@ fs.writeFileSync("world-map.js",
   `const WORLD_MAP = ${JSON.stringify({ width: W, height: H, paths })};\n`);
 fs.writeFileSync("countries.js",
   `// Generated from world-countries (ISO 3166-1). Do not edit by hand.\n` +
-  `// cc -> { name, continent, un: UN member, flag, x/y: map dot for countries too small for the 110m map }\n` +
+  `// cc -> { name, continent, sub: UN subregion, un: UN member, flag, x/y: map dot for countries too small for the 110m map }\n` +
   `const COUNTRIES = ${JSON.stringify(meta)};\n`);
 console.error("sizes:", fs.statSync("world-map.js").size, fs.statSync("countries.js").size);

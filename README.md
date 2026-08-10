@@ -44,14 +44,13 @@ of the same file.
 
 ## 🚀 Hosting on GitHub Pages
 
-One-time setup by a repo admin:
+Deployment is automatic: `.github/workflows/pages.yml` builds and publishes
+the site to GitHub Pages on every push to `master` (it also enables Pages on
+first run). The site lives at `https://<owner>.github.io/<repo>/`, and every
+merged change to `data/travelers.js` redeploys it within a minute or two.
 
-1. **Settings → Pages**
-2. Source: **Deploy from a branch**
-3. Branch: **master**, folder **/ (root)** → Save
-
-The site appears at `https://<owner>.github.io/<repo>/` a minute later, and
-every merged change to `data/travelers.js` redeploys it automatically.
+If Actions are disabled for the repo, the manual alternative still works:
+**Settings → Pages → Deploy from a branch → master / (root)**.
 
 ## 🗺️ What's on the page
 

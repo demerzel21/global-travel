@@ -49,6 +49,26 @@
   const fullHouse = visited.filter((cc) => visitors.get(cc).length === N && N > 1)
     .sort((a, b) => cname(a).localeCompare(cname(b)));
 
+  // coverage scopes — continents and UN subregions — for unlocks & milestones
+  const scopes = new Map(); // "continent|Europe" -> { kind, name, key, total, ccs }
+  for (const [cc, c] of Object.entries(COUNTRIES)) {
+    if (!c.un) continue;
+    for (const [kind, name] of [["continent", c.continent], ["region", c.sub]]) {
+      if (!name) continue;
+      const key = `${kind}|${name}`;
+      if (!scopes.has(key)) scopes.set(key, { kind, name, key, total: 0, ccs: [] });
+      const s = scopes.get(key);
+      s.total++;
+      s.ccs.push(cc);
+    }
+  }
+  // drop subregions that are identical to their continent (e.g. South America)
+  for (const [key, s] of scopes) {
+    if (s.kind !== "region") continue;
+    const c = scopes.get(`continent|${s.name}`);
+    if (c && c.total === s.total) scopes.delete(key);
+  }
+
   /* ---------- header ---------- */
   if (typeof GROUP !== "undefined" && GROUP.name) {
     $("#group-name").textContent = GROUP.name;
@@ -234,19 +254,34 @@
     })
     .sort((a, b) => b.got / b.total - a.got / a.total);
   for (const r of rows) {
-    const row = el("div", "ct-row");
+    const done = r.got === r.total;
+    const row = el("div", "ct-row" + (done ? " done" : ""));
     row.appendChild(el("span", null, r.c));
     const meter = el("div", "ct-meter");
     const fill = el("div", "ct-fill");
     fill.style.width = `${(r.got / r.total) * 100}%`;
     meter.appendChild(fill);
     row.appendChild(meter);
-    row.appendChild(el("span", "ct-val", `${r.got} / ${r.total}`));
+    row.appendChild(el("span", "ct-val", (done ? "🏆 " : "") + `${r.got} / ${r.total}`));
     ct.appendChild(row);
   }
   if (contVisited.has("Antarctica")) {
     const who = visitors.get("AQ").map((m) => m.name).join(", ");
     ct.appendChild(el("p", "ct-extra", `🐧 And yes — Antarctica: ${who} actually made it.`));
+  }
+  const unlockedSubs = [...scopes.values()]
+    .filter((s) => s.kind === "region" && s.total >= 2 && s.ccs.every((cc) => visitors.has(cc)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (unlockedSubs.length) {
+    ct.appendChild(el("p", "sub-head", "Regions unlocked 🎖️"));
+    const subWrap = el("div", "chips");
+    for (const s of unlockedSubs) {
+      const chip = el("span", "chip");
+      chip.appendChild(el("span", null, `🎖️ ${s.name}`));
+      chip.appendChild(el("span", "who", `· all ${s.total}`));
+      subWrap.appendChild(chip);
+    }
+    ct.appendChild(subWrap);
   }
 
   /* ---------- full-house & gems ---------- */
@@ -508,6 +543,46 @@
   table.appendChild(tbody);
   tableWrap.appendChild(table);
 
+  /* ---------- toasts & confetti ---------- */
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let toastHolder = null;
+  const showToast = (emoji, title, msg) => {
+    if (!toastHolder) {
+      toastHolder = el("div", "toast-holder");
+      document.body.appendChild(toastHolder);
+    }
+    const t = el("div", "toast");
+    t.setAttribute("role", "status");
+    t.appendChild(el("span", "t-emoji", emoji));
+    const body = el("div");
+    body.appendChild(el("strong", null, title));
+    if (msg) body.appendChild(el("p", null, msg));
+    t.appendChild(body);
+    toastHolder.appendChild(t);
+    setTimeout(() => {
+      t.classList.add("gone");
+      setTimeout(() => t.remove(), 350);
+    }, 4200);
+  };
+  const CONFETTI_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#4a3aa7"];
+  const confetti = (n) => {
+    if (reduceMotion || !document.body.animate) return;
+    for (let i = 0; i < n; i++) {
+      const p = el("span", "confetti");
+      p.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+      p.style.left = (5 + Math.random() * 90) + "vw";
+      if (i % 3 === 0) p.style.borderRadius = "50%";
+      document.body.appendChild(p);
+      p.animate(
+        [
+          { transform: "translateY(-6vh) rotate(0deg)", opacity: 1 },
+          { transform: `translate(${(Math.random() - 0.5) * 40}vw, 106vh) rotate(${Math.round(Math.random() * 900 - 450)}deg)`, opacity: 1 },
+        ],
+        { duration: 2100 + Math.random() * 1900, delay: Math.random() * 350, easing: "cubic-bezier(.25,.45,.45,1)" }
+      ).onfinish = () => p.remove();
+    }
+  };
+
   /* ---------- passport editor ---------- */
   (function editor() {
     const whoSel = $("#ed-who");
@@ -600,10 +675,87 @@
       statusEl.textContent = `${working.size} ${working.size === 1 ? "country" : "countries"}${delta}`;
     };
     const refresh = () => { applyMine(); renderChips(); renderStatus(); };
-    const toggle = (cc) => {
+
+    /* selection effects: ripple + floating flag + brightness pop on the country */
+    const fx = (cc, adding, pt) => {
+      if (reduceMotion) return;
+      const node = mapSvg.querySelector(`[data-cc="${cc}"]`);
+      const wr = wrap.getBoundingClientRect();
+      let x, y;
+      if (pt) { x = pt.x; y = pt.y; }
+      else if (node) {
+        const bb = node.getBoundingClientRect();
+        x = bb.x + bb.width / 2;
+        y = bb.y + bb.height / 2;
+      } else return;
+      const lx = x - wr.x + wrap.scrollLeft;
+      const ly = y - wr.y;
+      const rip = el("span", "fx-ripple" + (adding ? "" : " out"));
+      rip.style.left = lx + "px";
+      rip.style.top = ly + "px";
+      wrap.appendChild(rip);
+      setTimeout(() => rip.remove(), 700);
+      const f = el("span", "fx-flag" + (adding ? "" : " out"), (adding ? "+" : "−") + flag(cc));
+      f.style.left = lx + "px";
+      f.style.top = ly + "px";
+      wrap.appendChild(f);
+      setTimeout(() => f.remove(), 950);
+      if (node) {
+        node.classList.add("fx-pop");
+        setTimeout(() => node.classList.remove("fx-pop"), 500);
+      }
+    };
+
+    /* milestones: fire when your selection crosses continent/region coverage */
+    const scopeList = [...scopes.values()].filter((s) => s.kind === "continent" || s.total >= 2);
+    const achievedKeys = (set) => {
+      const out = new Set();
+      for (const s of scopeList) {
+        let got = 0;
+        for (const cc of s.ccs) if (set.has(cc)) got++;
+        if (s.kind === "continent" && s.total >= 6 && got >= s.total / 2) out.add(s.key + "|half");
+        if (got === s.total) out.add(s.key + "|full");
+      }
+      return out;
+    };
+    let achieved = new Set();
+    const pulseScope = (s) => {
+      for (const cc of s.ccs) {
+        const n = mapSvg.querySelector(`[data-cc="${cc}"]`);
+        if (!n) continue;
+        n.classList.add("celebrate");
+        setTimeout(() => n.classList.remove("celebrate"), 1800);
+      }
+    };
+    const fireMilestone = (key) => {
+      const [kind, name, level] = key.split("|");
+      const s = scopes.get(`${kind}|${name}`);
+      if (!s) return;
+      if (kind === "continent" && level === "full") {
+        showToast("🏆", `${name} — COMPLETE!`, `Every UN country in ${name}. Absolute legend.`);
+        confetti(140);
+        pulseScope(s);
+      } else if (kind === "continent" && level === "half") {
+        showToast("🌗", `Halfway through ${name}!`, `Over half of ${name}’s ${s.total} countries are in your passport.`);
+      } else if (kind === "region" && level === "full") {
+        showToast("🎖️", `Region unlocked: ${name}`, `All ${s.total} countries — that’s a wrap.`);
+        confetti(50);
+        pulseScope(s);
+      }
+    };
+    const checkMilestones = () => {
+      const now = achievedKeys(working);
+      for (const k of now) if (!achieved.has(k)) fireMilestone(k);
+      achieved = now;
+    };
+
+    const toggle = (cc, pt) => {
       if (!working) return;
-      working.has(cc) ? working.delete(cc) : working.add(cc);
+      const adding = !working.has(cc);
+      adding ? working.add(cc) : working.delete(cc);
       refresh();
+      fx(cc, adding, pt);
+      checkMilestones();
     };
 
     whoSel.addEventListener("change", () => {
@@ -612,6 +764,7 @@
       const m = isNew ? null : members[Number(whoSel.value)];
       baseline = new Set(m ? m.countries : []);
       working = new Set(baseline);
+      achieved = achievedKeys(working); // what you already have doesn't re-fire
       searchRow.hidden = false;
       actions.hidden = false;
       output.hidden = true;
@@ -621,7 +774,7 @@
     mapSvg.addEventListener("click", (e) => {
       if (!working) return;
       const t = e.target.closest("[data-cc]");
-      if (t) toggle(t.dataset.cc);
+      if (t) toggle(t.dataset.cc, { x: e.clientX, y: e.clientY });
     });
     const addFromSearch = () => {
       const cc = resolveCountry(searchIn.value);
@@ -631,8 +784,7 @@
       }
       searchIn.value = "";
       if (working.has(cc)) { renderStatus(`${cname(cc)} is already in your list.`); return; }
-      working.add(cc);
-      refresh();
+      toggle(cc);
     };
     $("#ed-add").addEventListener("click", addFromSearch);
     searchIn.addEventListener("keydown", (e) => {
