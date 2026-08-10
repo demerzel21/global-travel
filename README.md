@@ -16,9 +16,18 @@ The page has a built-in editor — **Update your stamps ✍️**, right under th
    name, emoji, and camera.
 2. **Tap countries on the map** to add or remove them (or type a country name
    in the search box — that's also how you add countries too small to tap,
-   like Singapore). Your selection glows with an orange outline.
-3. Hit **📋 Copy updated travelers.js**, then **Open the file on GitHub ↗**,
-   paste over the whole file, and commit. Done — the site redeploys itself.
+   like Singapore). Your selection glows with an orange outline, and your
+   in-progress edits auto-save as a draft on your device.
+3. Save it:
+   - **One-tap (recommended):** hit **🔗 Connect GitHub** once — it walks you
+     through creating a [fine-grained token](https://github.com/settings/personal-access-tokens/new)
+     scoped to just this repo with *Contents: read & write*. The token lives
+     only in your browser's local storage. From then on **💾 Save to GitHub**
+     commits your stamps directly (merged against the latest file, so two
+     people saving at once don't overwrite each other) and the site redeploys
+     itself in about a minute.
+   - **No token:** **📋 Copy updated travelers.js**, open the file on GitHub,
+     paste over everything, commit. Same result.
 
 Prefer editing by hand? [`data/travelers.js`](data/travelers.js) is plain
 JavaScript — copy an existing block and make it yours:

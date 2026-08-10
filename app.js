@@ -674,7 +674,34 @@
       const delta = (added || removed) ? ` (+${added} −${removed} vs saved)` : "";
       statusEl.textContent = `${working.size} ${working.size === 1 ? "country" : "countries"}${delta}`;
     };
-    const refresh = () => { applyMine(); renderChips(); renderStatus(); };
+    /* local draft — your in-progress edits survive reloads on this device */
+    const DRAFT_KEY = "group-passport-draft:" + repo;
+    const newFieldIds = ["ed-name", "ed-emoji", "ed-home", "ed-camera", "ed-fav"];
+    const saveDraft = () => {
+      if (!working) return;
+      const dirty = working.size !== baseline.size || [...working].some((cc) => !baseline.has(cc));
+      const fields = isNew ? newFieldIds.map((id) => $("#" + id).value) : null;
+      if (!dirty && !isNew) { localStorage.removeItem(DRAFT_KEY); return; }
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ who: whoSel.value, countries: [...working], fields }));
+      } catch { /* storage full or blocked — drafts just won't persist */ }
+    };
+    const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch {} };
+    const restoreDraft = () => {
+      let d = null;
+      try { d = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch {}
+      if (!d || !d.who || !Array.isArray(d.countries)) return;
+      if (d.who !== "new" && !members[Number(d.who)]) { clearDraft(); return; }
+      selectWho(d.who);
+      if (d.who === "new" && d.fields) newFieldIds.forEach((id, i) => { $("#" + id).value = d.fields[i] || ""; });
+      working = new Set(d.countries.filter((cc) => COUNTRIES[cc]));
+      achieved = achievedKeys(working);
+      applyMine(); renderChips();
+      renderStatus();
+      statusEl.textContent += " · draft restored from your last visit";
+    };
+
+    const refresh = () => { applyMine(); renderChips(); renderStatus(); saveDraft(); };
 
     /* selection effects: ripple + floating flag + brightness pop on the country */
     const fx = (cc, adding, pt) => {
@@ -758,10 +785,11 @@
       checkMilestones();
     };
 
-    whoSel.addEventListener("change", () => {
-      isNew = whoSel.value === "new";
+    const selectWho = (value) => {
+      whoSel.value = value;
+      isNew = value === "new";
       $("#ed-newfields").hidden = !isNew;
-      const m = isNew ? null : members[Number(whoSel.value)];
+      const m = isNew ? null : members[Number(value)];
       baseline = new Set(m ? m.countries : []);
       working = new Set(baseline);
       achieved = achievedKeys(working); // what you already have doesn't re-fire
@@ -770,7 +798,8 @@
       output.hidden = true;
       mapSvg.classList.add("editing");
       refresh();
-    });
+    };
+    whoSel.addEventListener("change", () => selectWho(whoSel.value));
     mapSvg.addEventListener("click", (e) => {
       if (!working) return;
       const t = e.target.closest("[data-cc]");
@@ -806,23 +835,8 @@
 // banner at the top of the page.
 
 `;
-    const fileText = () => {
-      const g = (typeof GROUP !== "undefined" && GROUP) || { name: "The Group Passport", tagline: "", repo: "" };
-      const mine = [...working].sort();
-      const list = members.map((m, i) => ({
-        ...m,
-        countries: (!isNew && Number(whoSel.value) === i) ? mine : m.countries,
-      }));
-      if (isNew) {
-        list.push({
-          name: $("#ed-name").value.trim() || "New Member",
-          emoji: $("#ed-emoji").value.trim() || "📷",
-          home: resolveCountry($("#ed-home").value) || "",
-          camera: $("#ed-camera").value.trim(),
-          favorite: resolveCountry($("#ed-fav").value) || "",
-          countries: mine,
-        });
-      }
+    const serialize = (list, g) => {
+      g = g || (typeof GROUP !== "undefined" && GROUP) || { name: "The Group Passport", tagline: "", repo: "" };
       let out = HEADER;
       out += `const GROUP = {\n  name: ${q(g.name)},\n  tagline: ${q(g.tagline)},\n  repo: ${q(g.repo)},\n};\n\nconst TRAVELERS = [\n`;
       for (const m of list) {
@@ -834,6 +848,38 @@
       out += `];\n`;
       return out;
     };
+    const myEntry = () => {
+      const mine = [...working].sort();
+      if (isNew) {
+        return {
+          name: $("#ed-name").value.trim() || "New Member",
+          emoji: $("#ed-emoji").value.trim() || "📷",
+          home: resolveCountry($("#ed-home").value) || "",
+          camera: $("#ed-camera").value.trim(),
+          favorite: resolveCountry($("#ed-fav").value) || "",
+          countries: mine,
+        };
+      }
+      const m = members[Number(whoSel.value)];
+      return { name: m.name, emoji: m.emoji, home: m.home, camera: m.camera, favorite: m.favorite, countries: mine };
+    };
+    // apply my edit onto a traveler list (page-load data, or freshly fetched from GitHub)
+    const mergeInto = (list) => {
+      const cleaned = list.map((m) => ({
+        name: String(m.name || ""),
+        emoji: String(m.emoji || "📷"),
+        home: String(m.home || "").toUpperCase(),
+        camera: String(m.camera || ""),
+        favorite: String(m.favorite || "").toUpperCase(),
+        countries: [...new Set((m.countries || []).map((c) => String(c).trim().toUpperCase()).filter((c) => COUNTRIES[c]))],
+      }));
+      const me = myEntry();
+      const idx = cleaned.findIndex((m) => m.name === me.name);
+      if (idx >= 0) cleaned[idx] = { ...cleaned[idx], countries: me.countries };
+      else cleaned.push(me);
+      return cleaned;
+    };
+    const fileText = () => serialize(mergeInto(members));
     const showOutput = (text) => {
       outText.value = text;
       output.hidden = false;
@@ -863,6 +909,112 @@
       URL.revokeObjectURL(a.href);
       renderStatus("Downloaded — replace data/travelers.js with it.");
     });
+    $("#ed-reset").addEventListener("click", () => {
+      if (!working) return;
+      working = new Set(baseline);
+      achieved = achievedKeys(working);
+      clearDraft();
+      refresh();
+      renderStatus("Back to the last saved version.");
+    });
+
+    /* one-tap saving: a fine-grained GitHub token, stored only in this browser */
+    const TOKEN_KEY = "group-passport-token";
+    const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } };
+    const saveBtn = $("#ed-save");
+    const connectBtn = $("#ed-connect");
+    const tokenPanel = $("#ed-token-panel");
+    const updateAuthUI = () => {
+      const has = !!getToken();
+      saveBtn.hidden = !has;
+      connectBtn.textContent = has ? "🔗 GitHub connected" : "🔗 Connect GitHub for one-tap saving…";
+      $("#ed-token-remove").hidden = !has;
+      $("#ed-copy").classList.toggle("primary", !has);
+    };
+    connectBtn.addEventListener("click", () => { tokenPanel.hidden = !tokenPanel.hidden; });
+    $("#ed-token-save").addEventListener("click", () => {
+      const t = $("#ed-token").value.trim();
+      if (!t) return;
+      try { localStorage.setItem(TOKEN_KEY, t); } catch {
+        renderStatus("This browser blocks local storage — the token can’t be remembered here.");
+        return;
+      }
+      $("#ed-token").value = "";
+      tokenPanel.hidden = true;
+      updateAuthUI();
+      renderStatus("GitHub connected on this device — 💾 Save to GitHub is live.");
+    });
+    $("#ed-token-remove").addEventListener("click", () => {
+      try { localStorage.removeItem(TOKEN_KEY); } catch {}
+      tokenPanel.hidden = true;
+      updateAuthUI();
+      renderStatus("Disconnected — back to copy & paste.");
+    });
+
+    const b64encode = (str) => {
+      const bytes = new TextEncoder().encode(str);
+      let bin = "";
+      for (const b of bytes) bin += String.fromCharCode(b);
+      return btoa(bin);
+    };
+    const b64decode = (b64) =>
+      new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), (c) => c.charCodeAt(0)));
+
+    const ghSave = async () => {
+      if (!working) return;
+      const token = getToken();
+      if (!token) { tokenPanel.hidden = false; return; }
+      if (!repo) { renderStatus("Set GROUP.repo in data/travelers.js to enable saving."); return; }
+      saveBtn.disabled = true;
+      renderStatus("Saving to GitHub…");
+      const H = { Authorization: "Bearer " + token, Accept: "application/vnd.github+json" };
+      const path = `https://api.github.com/repos/${repo}/contents/data/travelers.js`;
+      try {
+        const rRepo = await fetch(`https://api.github.com/repos/${repo}`, { headers: H });
+        if (rRepo.status === 401) throw new Error("GitHub didn’t accept the token — disconnect and reconnect with a fresh one.");
+        if (!rRepo.ok) throw new Error(`Couldn’t reach ${repo} — does the token have access to it?`);
+        const branch = (await rRepo.json()).default_branch;
+        const attempt = async () => {
+          const rFile = await fetch(`${path}?ref=${branch}`, { headers: H });
+          if (!rFile.ok) throw new Error("Couldn’t read data/travelers.js from GitHub.");
+          const file = await rFile.json();
+          let remote;
+          try {
+            remote = new Function(b64decode(file.content) + "\n;return { g: typeof GROUP !== 'undefined' ? GROUP : null, t: TRAVELERS };")();
+          } catch {
+            throw new Error("The file on GitHub doesn’t parse — fix it by hand first, then save again.");
+          }
+          const content = serialize(mergeInto(remote.t || []), remote.g || undefined);
+          return fetch(path, {
+            method: "PUT",
+            headers: { ...H, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: `Update stamps: ${myEntry().name} (${working.size} countries)`,
+              content: b64encode(content),
+              sha: file.sha,
+              branch,
+            }),
+          });
+        };
+        let res = await attempt();
+        if (res.status === 409 || res.status === 422) res = await attempt(); // someone saved in between — remerge on the fresh file
+        if (!res.ok) throw new Error(`GitHub rejected the save (HTTP ${res.status}). Check the token’s Contents permission.`);
+        clearDraft();
+        baseline = new Set(working);
+        renderChips();
+        renderStatus("Saved ✓");
+        showToast("💾", "Saved to GitHub", "Your stamps are committed — the live site updates itself in about a minute.");
+      } catch (e) {
+        renderStatus(String((e && e.message) || e));
+      } finally {
+        saveBtn.disabled = false;
+      }
+    };
+    saveBtn.addEventListener("click", ghSave);
+
+    newFieldIds.forEach((id) => $("#" + id).addEventListener("input", saveDraft));
+    updateAuthUI();
+    restoreDraft();
   })();
 
   /* ---------- footer ---------- */

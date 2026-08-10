@@ -310,6 +310,18 @@ select:focus-visible, .editor-card input:focus-visible, .btn:focus-visible {
 }
 .chips .chip button:hover, .chips .chip button:focus-visible { color: var(--ink); background: var(--map-empty); }
 .chip.added { border-color: var(--accent); }
+.btn[disabled] { opacity: 0.55; cursor: default; }
+.ed-token {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--page);
+  padding: 14px 16px;
+  font-size: 14px;
+}
+.ed-token ol { margin: 6px 0 10px; padding-left: 22px; display: grid; gap: 4px; }
+.ed-token .ed-row { margin-bottom: 6px; }
+.ed-token #ed-token { flex: 1 1 220px; min-width: 180px; }
 .ed-output { margin-top: 14px; }
 .ed-output summary { cursor: pointer; font-size: 14px; color: var(--ink-2); }
 .ed-output textarea {
