@@ -293,7 +293,7 @@
   /* ---------- toasts & confetti ---------- */
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let toastHolder = null;
-  const showToast = (emoji, title, msg) => {
+  const showToast = (emoji, title, msg, onTap) => {
     if (!toastHolder) {
       toastHolder = el("div", "toast-holder");
       document.body.appendChild(toastHolder);
@@ -305,11 +305,15 @@
     body.appendChild(el("strong", null, title));
     if (msg) body.appendChild(el("p", null, msg));
     t.appendChild(body);
+    if (onTap) {
+      t.style.cursor = "pointer";
+      t.addEventListener("click", onTap);
+    }
     toastHolder.appendChild(t);
     setTimeout(() => {
       t.classList.add("gone");
       setTimeout(() => t.remove(), 350);
-    }, 4200);
+    }, onTap ? 8000 : 4200);
   };
   const CONFETTI_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#4a3aa7"];
   const confetti = (n) => {
@@ -1531,5 +1535,13 @@
   /* ---------- offline support: cache the whole site for airplane mode ---------- */
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register("sw.js").catch(() => { /* not fatal */ });
+    // the worker's background refresh found newer traveler data
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      if (!e.data || e.data.type !== "data-updated") return;
+      if (document.body.classList.contains("editing")) return; // never disrupt an edit
+      showToast("🆕", "Fresh stamps just landed", "Tap here to see the latest map.", () => location.reload());
+    });
+    // addEventListener alone leaves the message queue paused — release it
+    if (navigator.serviceWorker.startMessages) navigator.serviceWorker.startMessages();
   }
 })();
