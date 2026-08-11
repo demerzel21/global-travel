@@ -1013,6 +1013,7 @@
       hideConfirm();
       const adding = !working.has(cc);
       adding ? working.add(cc) : working.delete(cc);
+      if (adding) lastAdded = cc; // powers "near your last add" suggestions
       refresh();
       fx(cc, adding, pt);
       checkMilestones();
@@ -1140,10 +1141,50 @@
       else hideConfirm(); // tapped open water far from anything — dismiss
     });
     /* typeahead: suggestions populate as you type — names, codes, and whole
-       regions ("Caribbean" lists every Caribbean country to tap through) */
+       regions ("Caribbean" lists every Caribbean country to tap through).
+       Smart matching: aliases, diacritic-blind, typo-tolerant, and contextual
+       suggestions (neighbors of your last add) when the box is empty. */
     const panel = $("#suggest-panel");
     let sgItems = [];
     let sgActive = -1;
+    let lastAdded = null;
+    const norm = (s) => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const ALIASES = {
+      "usa": "US", "america": "US", "united states of america": "US",
+      "uk": "GB", "britain": "GB", "great britain": "GB", "england": "GB",
+      "uae": "AE", "emirates": "AE",
+      "holland": "NL",
+      "korea": "KR",
+      "burma": "MM",
+      "czech republic": "CZ",
+      "cote d'ivoire": "CI", "cote divoire": "CI",
+      "cape verde": "CV",
+      "swaziland": "SZ",
+      "macedonia": "MK",
+      "east timor": "TL",
+      "vatican": "VA",
+      "turkey": "TR",
+      "drc": "CD", "congo kinshasa": "CD", "congo brazzaville": "CG",
+      "brasil": "BR",
+      "persia": "IR",
+    };
+    const NAME_INDEX = Object.entries(COUNTRIES).map(([cc, c]) => ({ cc, n: norm(c.name) }));
+    // bounded edit distance for typo tolerance
+    const lev = (a, b, max) => {
+      if (Math.abs(a.length - b.length) > max) return max + 1;
+      let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+      for (let i = 1; i <= a.length; i++) {
+        const cur = [i];
+        let rowMin = i;
+        for (let j = 1; j <= b.length; j++) {
+          cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+          if (cur[j] < rowMin) rowMin = cur[j];
+        }
+        if (rowMin > max) return max + 1;
+        prev = cur;
+      }
+      return prev[b.length];
+    };
     const closeSuggest = () => {
       panel.hidden = true;
       panel.textContent = "";
@@ -1152,25 +1193,58 @@
       searchIn.setAttribute("aria-expanded", "false");
     };
     const buildMatches = (qRaw) => {
-      const q = qRaw.trim().toLowerCase();
-      if (!q) return { rows: [], region: null };
-      const rows = [];
-      for (const [cc, c] of Object.entries(COUNTRIES)) {
-        const nm = c.name.toLowerCase();
-        let score = null;
-        if (cc.toLowerCase() === q) score = -1;
-        else if (nm.startsWith(q)) score = 0;
-        else if (nm.includes(q)) score = 1;
-        if (score != null) rows.push({ cc, score });
+      const q = norm(qRaw.trim());
+      if (!q) {
+        // empty box: contextual suggestions instead of silence
+        const have = working || new Set();
+        if (lastAdded && COUNTRIES[lastAdded]) {
+          const sub = COUNTRIES[lastAdded].sub;
+          const near = NAME_INDEX
+            .filter((e) => COUNTRIES[e.cc].sub === sub && !have.has(e.cc))
+            .map((e) => e.cc)
+            .sort((a, b) => cname(a).localeCompare(cname(b)))
+            .slice(0, 8);
+          if (near.length) return { rows: [], region: null, context: { head: `Near ${cname(lastAdded)} — often the same trip`, ccs: near } };
+        }
+        const crew = [...visitors.entries()]
+          .filter(([cc]) => !have.has(cc))
+          .sort((a, b) => b[1].length - a[1].length || cname(a[0]).localeCompare(cname(b[0])))
+          .map(([cc]) => cc)
+          .slice(0, 8);
+        if (crew.length) return { rows: [], region: null, context: { head: "The crew’s been here — you too?", ccs: crew } };
+        return { rows: [], region: null, context: null };
       }
-      rows.sort((a, b) => a.score - b.score || cname(a.cc).localeCompare(cname(b.cc)));
+      const scores = new Map(); // cc -> best score
+      const consider = (cc, score) => {
+        if (working && working.has(cc)) score += 0.25; // surface un-added first
+        if (!scores.has(cc) || scores.get(cc) > score) scores.set(cc, score);
+      };
+      if (q.length === 2 && COUNTRIES[q.toUpperCase()]) consider(q.toUpperCase(), -2);
+      for (const [alias, cc] of Object.entries(ALIASES))
+        if (alias.startsWith(q)) consider(cc, -1);
+      for (const e of NAME_INDEX) {
+        if (e.n.startsWith(q)) consider(e.cc, 0);
+        else if (e.n.includes(" " + q)) consider(e.cc, 0.5);
+        else if (e.n.includes(q)) consider(e.cc, 1);
+      }
+      if (!scores.size && q.length >= 4) {
+        // nothing matched — allow a typo or two
+        const max = q.length >= 6 ? 2 : 1;
+        for (const e of NAME_INDEX) {
+          if (lev(q, e.n.slice(0, q.length), max) <= max) consider(e.cc, 2);
+          else if (Math.abs(e.n.length - q.length) <= max && lev(q, e.n, max) <= max) consider(e.cc, 2);
+        }
+      }
+      const rows = [...scores.entries()]
+        .sort((a, b) => a[1] - b[1] || cname(a[0]).localeCompare(cname(b[0])))
+        .map(([cc]) => ({ cc }));
       let region = null;
       if (q.length >= 3) {
         for (const s of scopes.values()) {
-          if (s.name.toLowerCase().startsWith(q)) { region = s; break; }
+          if (norm(s.name).startsWith(q)) { region = s; break; }
         }
       }
-      return { rows: rows.slice(0, 8), region };
+      return { rows: rows.slice(0, 8), region, context: null };
     };
     const markActive = () => {
       sgItems.forEach((it, i) => it.elm.classList.toggle("active", i === sgActive));
@@ -1190,11 +1264,11 @@
       }
     };
     const renderSuggest = () => {
-      const { rows, region } = buildMatches(searchIn.value);
+      const { rows, region, context } = buildMatches(searchIn.value);
       panel.textContent = "";
       sgItems = [];
-      if (!rows.length && !region) { closeSuggest(); return; }
-      const q = searchIn.value.trim().toLowerCase();
+      if (!rows.length && !region && !context) { closeSuggest(); return; }
+      const q = norm(searchIn.value.trim());
       const addRow = (cc) => {
         const idx = sgItems.length;
         const b = el("button", "sg-row");
@@ -1204,7 +1278,7 @@
         b.appendChild(el("span", "sg-flag", flag(cc)));
         const nameSpan = el("span");
         const nm = cname(cc);
-        const at = q ? nm.toLowerCase().indexOf(q) : -1;
+        const at = q ? norm(nm).indexOf(q) : -1;
         if (at >= 0) {
           nameSpan.appendChild(document.createTextNode(nm.slice(0, at)));
           nameSpan.appendChild(el("strong", null, nm.slice(at, at + q.length)));
@@ -1224,7 +1298,13 @@
       rows.forEach((r) => addRow(r.cc));
       if (region) {
         panel.appendChild(el("div", "sg-head", `${region.name} — tap each one you’ve been to`));
-        for (const cc of [...region.ccs].sort((a, b) => cname(a).localeCompare(cname(b)))) addRow(cc);
+        const already = new Set(rows.map((r) => r.cc));
+        for (const cc of [...region.ccs].sort((a, b) => cname(a).localeCompare(cname(b))))
+          if (!already.has(cc)) addRow(cc);
+      }
+      if (context) {
+        panel.appendChild(el("div", "sg-head", context.head));
+        for (const cc of context.ccs) addRow(cc);
       }
       sgActive = sgItems.length ? 0 : -1;
       markActive();
@@ -1233,6 +1313,7 @@
     };
     searchIn.addEventListener("input", renderSuggest);
     searchIn.addEventListener("focus", renderSuggest);
+    searchIn.addEventListener("click", renderSuggest); // an already-focused input fires no focus event
     searchIn.addEventListener("blur", () => {
       setTimeout(() => { if (document.activeElement !== searchIn) closeSuggest(); }, 180);
     });
