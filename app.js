@@ -95,6 +95,8 @@
   /* ---------- map: create geometry once, shade it on every render ---------- */
   const svg = $("#map");
   svg.setAttribute("viewBox", `0 0 ${WORLD_MAP.width} ${WORLD_MAP.height}`);
+  let lastPointerType = "mouse"; // touch taps identify-then-confirm; mouse clicks act instantly
+  svg.addEventListener("pointerdown", (e) => { lastPointerType = e.pointerType || "mouse"; }, true);
   const whoLine = (cc) => {
     const v = visitors.get(cc);
     return v ? v.map((m) => `${m.emoji} ${m.name}`).join(", ") : "";
@@ -257,6 +259,8 @@
   };
   svg.addEventListener("pointermove", (e) => {
     if (mapView.isDragging()) { tip.hidden = true; return; }
+    // while editing on touch, the confirm callout does the identifying
+    if (e.pointerType === "touch" && svg.classList.contains("editing")) { tip.hidden = true; return; }
     const t = e.target.closest("[data-cc]");
     if (!t) { tip.hidden = true; return; }
     fillTip(t.dataset.cc);
@@ -436,12 +440,14 @@
       const cc = node.dataset.cc;
       const v = visitors.get(cc);
       const keepMine = node.classList.contains("mine");
+      const keepPending = node.classList.contains("pending");
       if (node.tagName === "path") {
         node.setAttribute("class", v ? `country hit b${binOf(v.length)}` : "country");
       } else {
         node.setAttribute("class", v ? `cdot b${binOf(v.length)}` : "cdot off");
       }
       if (keepMine) node.classList.add("mine");
+      if (keepPending) node.classList.add("pending");
       if (v) {
         node.setAttribute("tabindex", "0");
         node.setAttribute("role", "img");
@@ -930,6 +936,7 @@
       wrap.appendChild(rip);
       setTimeout(() => rip.remove(), 700);
       const f = el("span", "fx-flag" + (adding ? "" : " out"), (adding ? "+" : "−") + flag(cc));
+      f.appendChild(el("span", "fx-name", cname(cc)));
       f.style.left = lx + "px";
       f.style.top = ly + "px";
       wrap.appendChild(f);
@@ -985,11 +992,60 @@
 
     const toggle = (cc, pt) => {
       if (!working) return;
+      hideConfirm();
       const adding = !working.has(cc);
       adding ? working.add(cc) : working.delete(cc);
       refresh();
       fx(cc, adding, pt);
       checkMilestones();
+    };
+
+    /* touch confirm callout: first tap names the country, second tap (or the
+       button) toggles it — so you never commit to a shape you can't identify */
+    let pendingCC = null;
+    let confirmEl = null;
+    const hideConfirm = () => {
+      if (confirmEl) { confirmEl.remove(); confirmEl = null; }
+      if (pendingCC) {
+        const n = svg.querySelector(`[data-cc="${pendingCC}"]`);
+        if (n) n.classList.remove("pending");
+        pendingCC = null;
+      }
+    };
+    const showConfirm = (cc, pt) => {
+      hideConfirm();
+      pendingCC = cc;
+      const node = svg.querySelector(`[data-cc="${cc}"]`);
+      if (node) node.classList.add("pending");
+      const adding = !working.has(cc);
+      confirmEl = el("div", "confirm-pop");
+      const name = el("span", "cp-name");
+      name.appendChild(el("span", "cp-flag", flag(cc)));
+      name.appendChild(el("span", null, cname(cc)));
+      confirmEl.appendChild(name);
+      const act = el("button", "btn primary", adding ? "＋ Add" : "− Remove");
+      act.type = "button";
+      act.addEventListener("click", (e2) => { e2.stopPropagation(); toggle(cc, pt); });
+      confirmEl.appendChild(act);
+      const x = el("button", "cp-x", "✕");
+      x.type = "button";
+      x.setAttribute("aria-label", "Cancel");
+      x.addEventListener("click", (e2) => { e2.stopPropagation(); hideConfirm(); });
+      confirmEl.appendChild(x);
+      const wr = wrap.getBoundingClientRect();
+      wrap.appendChild(confirmEl);
+      const half = confirmEl.offsetWidth / 2;
+      const lx = Math.min(wr.width - half - 6, Math.max(half + 6, pt.x - wr.x + wrap.scrollLeft));
+      const ly = Math.max(confirmEl.offsetHeight + 18, pt.y - wr.y);
+      confirmEl.style.left = lx + "px";
+      confirmEl.style.top = ly + "px";
+      tip.hidden = true;
+    };
+    svg.addEventListener("wheel", hideConfirm, { passive: true });
+    const confirmToggle = (cc, pt) => {
+      if (lastPointerType !== "touch") { toggle(cc, pt); return; }
+      if (pendingCC === cc) { toggle(cc, pt); return; } // second tap on the country confirms
+      showConfirm(cc, pt);
     };
 
     /* enter / leave editing mode — the bar is the only editing chrome on screen */
@@ -1018,6 +1074,7 @@
       document.body.classList.remove("editing");
       svg.classList.remove("editing");
       $("#map-hint").textContent = "";
+      hideConfirm();
       renderData(members);
       applyMine();
       closeMenu();
@@ -1059,7 +1116,8 @@
     svg.addEventListener("click", (e) => {
       if (!working || mapView.clickSuppressed()) return;
       const t = e.target.closest("[data-cc]") || findNearby(e.clientX, e.clientY);
-      if (t) toggle(t.dataset.cc, { x: e.clientX, y: e.clientY });
+      if (t) confirmToggle(t.dataset.cc, { x: e.clientX, y: e.clientY });
+      else hideConfirm(); // tapped open water far from anything — dismiss
     });
     const addFromSearch = () => {
       if (!working) return;

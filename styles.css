@@ -310,6 +310,43 @@ dialog#who-dialog::backdrop { background: rgba(10, 10, 10, 0.5); backdrop-filter
   position: absolute; pointer-events: none; z-index: 4;
   font-size: 19px; font-weight: 700;
   animation: fx-float 0.9s ease-out forwards;
+  white-space: nowrap;
+}
+.fx-flag .fx-name {
+  font-size: 13px; font-weight: 650; color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+/* touch confirm callout: identify first, toggle second */
+.confirm-pop {
+  position: absolute; z-index: 6;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 8px 8px 8px 12px;
+  transform: translate(-50%, calc(-100% - 14px));
+  white-space: nowrap;
+  max-width: 92vw;
+}
+.cp-name { font-weight: 650; font-size: 14.5px; }
+.cp-name .cp-flag { font-size: 18px; margin-right: 4px; }
+.confirm-pop .btn { padding: 7px 12px; font-size: 13.5px; }
+.cp-x {
+  all: unset; cursor: pointer;
+  color: var(--muted); font-size: 13px;
+  padding: 5px 7px; border-radius: 6px;
+}
+.cp-x:hover, .cp-x:focus-visible { color: var(--ink); background: var(--map-empty); }
+.country.pending, .cdot.pending {
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  stroke-dasharray: 5 3;
 }
 .fx-flag.out { filter: grayscale(1); animation-name: fx-sink; }
 @keyframes fx-float {
