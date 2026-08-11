@@ -652,6 +652,40 @@ td.num { font-variant-numeric: tabular-nums; text-align: center; color: var(--in
   padding: 8px 11px;
 }
 .edit-bar .btn.primary.attn { outline: 2px solid var(--accent); outline-offset: 1px; }
+.suggest {
+  position: absolute; left: 10px; right: 10px; bottom: calc(100% + 10px);
+  display: grid; gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(11,11,11,.12), 0 16px 40px rgba(11,11,11,.16);
+  padding: 6px;
+  max-height: min(300px, 46vh);
+  overflow: auto;
+  z-index: 45;
+}
+.sg-row {
+  all: unset;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 14.5px;
+  color: var(--ink);
+}
+.sg-row .sg-flag { font-size: 18px; flex: none; }
+.sg-row .sg-meta { margin-left: auto; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.sg-row .sg-in { color: var(--series); font-weight: 700; }
+.sg-row strong { color: var(--accent); }
+.sg-row.active, .sg-row:hover { background: var(--page); }
+.sg-row:focus-visible { outline: 2px solid var(--series); outline-offset: -2px; }
+.sg-head {
+  font-size: 12px; font-weight: 650; color: var(--muted);
+  padding: 8px 12px 2px;
+  border-top: 1px solid var(--grid);
+  margin-top: 4px;
+}
+.sg-head:first-child { border-top: none; margin-top: 0; }
 .eb-menu-wrap { position: relative; }
 .eb-menu {
   position: absolute; bottom: calc(100% + 10px); right: 0;

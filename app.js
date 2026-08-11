@@ -1093,6 +1093,8 @@
       svg.classList.remove("editing");
       $("#map-hint").textContent = "";
       hideConfirm();
+      closeSuggest();
+      searchIn.value = "";
       renderData(members);
       applyMine();
       closeMenu();
@@ -1137,22 +1139,123 @@
       if (t) confirmToggle(t.dataset.cc, { x: e.clientX, y: e.clientY });
       else hideConfirm(); // tapped open water far from anything — dismiss
     });
-    const addFromSearch = () => {
-      if (!working) return;
-      const q = searchIn.value;
-      const cc = resolveCountry(q);
-      if (!cc) {
-        if (q.trim()) renderStatus(`“${q.trim()}” isn’t focusing — try the full country name.`);
-        return;
-      }
-      searchIn.value = "";
-      if (working.has(cc)) { renderStatus(`${cname(cc)} is already in your list.`); return; }
-      toggle(cc);
+    /* typeahead: suggestions populate as you type — names, codes, and whole
+       regions ("Caribbean" lists every Caribbean country to tap through) */
+    const panel = $("#suggest-panel");
+    let sgItems = [];
+    let sgActive = -1;
+    const closeSuggest = () => {
+      panel.hidden = true;
+      panel.textContent = "";
+      sgItems = [];
+      sgActive = -1;
+      searchIn.setAttribute("aria-expanded", "false");
     };
-    searchIn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); addFromSearch(); }
+    const buildMatches = (qRaw) => {
+      const q = qRaw.trim().toLowerCase();
+      if (!q) return { rows: [], region: null };
+      const rows = [];
+      for (const [cc, c] of Object.entries(COUNTRIES)) {
+        const nm = c.name.toLowerCase();
+        let score = null;
+        if (cc.toLowerCase() === q) score = -1;
+        else if (nm.startsWith(q)) score = 0;
+        else if (nm.includes(q)) score = 1;
+        if (score != null) rows.push({ cc, score });
+      }
+      rows.sort((a, b) => a.score - b.score || cname(a.cc).localeCompare(cname(b.cc)));
+      let region = null;
+      if (q.length >= 3) {
+        for (const s of scopes.values()) {
+          if (s.name.toLowerCase().startsWith(q)) { region = s; break; }
+        }
+      }
+      return { rows: rows.slice(0, 8), region };
+    };
+    const markActive = () => {
+      sgItems.forEach((it, i) => it.elm.classList.toggle("active", i === sgActive));
+      searchIn.setAttribute("aria-activedescendant", sgActive >= 0 ? "sg-" + sgActive : "");
+      if (sgActive >= 0) sgItems[sgActive].elm.scrollIntoView({ block: "nearest" });
+    };
+    const pickSuggest = (idx, viaEnter) => {
+      const it = sgItems[idx];
+      if (!it || !working) return;
+      toggle(it.cc);
+      if (viaEnter) {
+        searchIn.value = "";
+        closeSuggest();
+      } else {
+        searchIn.focus();   // stay open for multi-adding (e.g. a whole region)
+        renderSuggest();
+      }
+    };
+    const renderSuggest = () => {
+      const { rows, region } = buildMatches(searchIn.value);
+      panel.textContent = "";
+      sgItems = [];
+      if (!rows.length && !region) { closeSuggest(); return; }
+      const q = searchIn.value.trim().toLowerCase();
+      const addRow = (cc) => {
+        const idx = sgItems.length;
+        const b = el("button", "sg-row");
+        b.type = "button";
+        b.setAttribute("role", "option");
+        b.id = "sg-" + idx;
+        b.appendChild(el("span", "sg-flag", flag(cc)));
+        const nameSpan = el("span");
+        const nm = cname(cc);
+        const at = q ? nm.toLowerCase().indexOf(q) : -1;
+        if (at >= 0) {
+          nameSpan.appendChild(document.createTextNode(nm.slice(0, at)));
+          nameSpan.appendChild(el("strong", null, nm.slice(at, at + q.length)));
+          nameSpan.appendChild(document.createTextNode(nm.slice(at + q.length)));
+        } else {
+          nameSpan.textContent = nm;
+        }
+        b.appendChild(nameSpan);
+        const meta = el("span", "sg-meta");
+        if (working && working.has(cc)) meta.appendChild(el("span", "sg-in", "✓ in your list"));
+        else meta.textContent = COUNTRIES[cc].continent;
+        b.appendChild(meta);
+        b.addEventListener("click", () => pickSuggest(idx));
+        panel.appendChild(b);
+        sgItems.push({ cc, elm: b });
+      };
+      rows.forEach((r) => addRow(r.cc));
+      if (region) {
+        panel.appendChild(el("div", "sg-head", `${region.name} — tap each one you’ve been to`));
+        for (const cc of [...region.ccs].sort((a, b) => cname(a).localeCompare(cname(b)))) addRow(cc);
+      }
+      sgActive = sgItems.length ? 0 : -1;
+      markActive();
+      panel.hidden = false;
+      searchIn.setAttribute("aria-expanded", "true");
+    };
+    searchIn.addEventListener("input", renderSuggest);
+    searchIn.addEventListener("focus", renderSuggest);
+    searchIn.addEventListener("blur", () => {
+      setTimeout(() => { if (document.activeElement !== searchIn) closeSuggest(); }, 180);
     });
-    searchIn.addEventListener("change", addFromSearch);
+    searchIn.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" && sgItems.length) {
+        e.preventDefault();
+        sgActive = (sgActive + 1) % sgItems.length;
+        markActive();
+      } else if (e.key === "ArrowUp" && sgItems.length) {
+        e.preventDefault();
+        sgActive = (sgActive - 1 + sgItems.length) % sgItems.length;
+        markActive();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (sgActive >= 0) pickSuggest(sgActive, true);
+        else {
+          const cc = resolveCountry(searchIn.value);
+          if (cc) { toggle(cc); searchIn.value = ""; closeSuggest(); }
+        }
+      } else if (e.key === "Escape") {
+        closeSuggest();
+      }
+    });
 
     /* the ⋯ menu */
     const menu = $("#eb-menu");
