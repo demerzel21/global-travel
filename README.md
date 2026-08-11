@@ -91,6 +91,12 @@ If Actions are disabled for the repo, the manual alternative still works:
 
 Light and dark mode both supported — the page follows your OS setting.
 
+**Works offline:** a service worker caches the whole site, so it opens with no
+connection (airplane mode included). Edits always save locally as a draft on
+your device; when you're back online, hit 💾 Save and it syncs to GitHub.
+On touch, tapping a country outside edit mode pins an info card naming it —
+no flag knowledge required.
+
 ## 🔧 Repo layout
 
 ```

@@ -267,6 +267,20 @@
     placeTip(e.clientX, e.clientY);
   });
   svg.addEventListener("pointerleave", () => { tip.hidden = true; });
+  // touch, outside editing: a tap pins the info card so you can identify a
+  // country by name without selecting anything (mouse users just hover)
+  svg.addEventListener("click", (e) => {
+    if (svg.classList.contains("editing")) return; // the editor's callout owns taps there
+    if (lastPointerType !== "touch" || mapView.clickSuppressed()) return;
+    const t = e.target.closest("[data-cc]");
+    if (!t) { tip.hidden = true; return; }
+    fillTip(t.dataset.cc);
+    placeTip(e.clientX, e.clientY - 34); // lift it clear of the finger
+  });
+  // tapping anywhere off the map dismisses the pinned card
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest || !e.target.closest("#map-wrap")) tip.hidden = true;
+  });
   svg.addEventListener("focusin", (e) => {
     const t = e.target.closest("[data-cc]");
     if (!t) return;
@@ -1355,7 +1369,23 @@
         statusEl.appendChild(a);
       }
     };
-    saveBtn.addEventListener("click", () => (getToken() ? ghSave() : ghIssueSave()));
+    saveBtn.addEventListener("click", () => {
+      if (!navigator.onLine) {
+        renderStatus("📴 Offline — your changes are safe as a draft. Hit Save once you’re back online.");
+        return;
+      }
+      getToken() ? ghSave() : ghIssueSave();
+    });
+
+    /* offline: edits keep working locally; saving syncs when you're back */
+    window.addEventListener("offline", () => {
+      showToast("📴", "You’re offline", "No worries — edits keep saving on this device.");
+    });
+    window.addEventListener("online", () => {
+      let hasDraft = false;
+      try { hasDraft = !!localStorage.getItem(DRAFT_KEY); } catch {}
+      showToast("🌐", "Back online", hasDraft ? "Your draft is ready — hit 💾 Save to sync it." : "All caught up.");
+    });
 
     /* profile fields (inside the who-dialog) */
     newFieldIds.forEach((id) => $("#" + id).addEventListener("input", saveDraft));
@@ -1497,4 +1527,9 @@
     else if (!id || id.type !== "guest") showWhoDialog(); // unknown (or stale member) — ask
     // guests are remembered too: never nag them again
   })();
+
+  /* ---------- offline support: cache the whole site for airplane mode ---------- */
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    navigator.serviceWorker.register("sw.js").catch(() => { /* not fatal */ });
+  }
 })();
