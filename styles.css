@@ -102,12 +102,13 @@ main > *, .grid-2 > * { min-width: 0; }
 
 /* ---------- identity ---------- */
 .id-chip {
-  display: inline-flex; gap: 10px; align-items: center;
+  display: inline-flex; gap: 6px 12px; align-items: center;
+  flex-wrap: wrap; justify-content: flex-start;
   margin: 12px 0 0;
   font-size: 14px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 18px;
   padding: 6px 14px;
   box-shadow: var(--shadow);
 }
@@ -241,7 +242,8 @@ dialog#who-dialog::backdrop { background: rgba(10, 10, 10, 0.5); backdrop-filter
 .map-controls button:hover { border-color: var(--series); }
 .map-controls button:focus-visible { outline: 2px solid var(--series); outline-offset: 1px; }
 .country.hit, .cdot { cursor: pointer; }
-.cdot { stroke: var(--surface); stroke-width: 2px; }
+.cdot { stroke: var(--surface); stroke-width: 2px; fill: var(--map-empty); }
+.cdot.off { display: none; }
 .b1 { fill: var(--v1); } .b2 { fill: var(--v2); } .b3 { fill: var(--v3); }
 .b4 { fill: var(--v4); } .b5 { fill: var(--v5); }
 .country:hover, .country:focus-visible, .cdot:hover, .cdot:focus-visible {
@@ -622,8 +624,10 @@ td.num { font-variant-numeric: tabular-nums; text-align: center; color: var(--in
   .site-head { padding-top: 30px; }
   .stat.hero .value { font-size: 44px; }
   .stat .value { font-size: 26px; }
-  .lb-row { grid-template-columns: 96px 1fr; }
+  .lb-row { grid-template-columns: 112px 1fr; }
   .ct-row { grid-template-columns: 96px 1fr 54px; }
+  .map-controls { top: 6px; right: 6px; gap: 4px; }
+  .map-controls button { width: 30px; height: 30px; font-size: 15px; border-radius: 8px; }
   .ed-actions .btn { flex: 1 1 auto; justify-content: center; }
 }
 

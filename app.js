@@ -124,10 +124,20 @@
   const mapView = (function () {
     const W = WORLD_MAP.width, H = WORLD_MAP.height;
     const MAXZ = 20; // deep enough to comfortably tap Jordan, Malta, the Caribbean…
-    const vb = { x: 0, y: 0, w: W, h: H };
+    const rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const vb = { x: 0, y: 0, w: W, h: H };   // rendered right now
+    const tvb = { x: 0, y: 0, w: W, h: H };  // where we're easing to
     let dragging = false;
     let suppressClick = false;
-    const zoomLevel = () => W / vb.w;
+    let animId = null;
+    let lastT = 0;
+    const zoomLevel = () => W / tvb.w;
+    const clampBox = (b) => {
+      b.w = Math.min(W, Math.max(W / MAXZ, b.w));
+      b.h = b.w * (H / W);
+      b.x = Math.min(W - b.w, Math.max(0, b.x));
+      b.y = Math.min(H - b.h, Math.max(0, b.y));
+    };
     const syncUI = () => {
       const zoomed = zoomLevel() > 1.01;
       $("#zoom-reset").hidden = !zoomed;
@@ -135,40 +145,74 @@
       svg.style.touchAction = zoomed ? "none" : "pan-y";
       svg.classList.toggle("zoomed", zoomed);
     };
-    const apply = () => {
-      vb.w = Math.min(W, Math.max(W / MAXZ, vb.w));
-      vb.h = vb.w * (H / W);
-      vb.x = Math.min(W - vb.w, Math.max(0, vb.x));
-      vb.y = Math.min(H - vb.h, Math.max(0, vb.y));
+    const render = () => {
       svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
       // dots grow gently with zoom instead of ballooning linearly
-      const rr = (4.5 / Math.sqrt(zoomLevel())).toFixed(2);
+      const rr = (4.5 / Math.sqrt(W / vb.w)).toFixed(2);
       svg.querySelectorAll(".cdot").forEach((d) => d.setAttribute("r", rr));
-      syncUI();
     };
-    const zoomAt = (cx, cy, f) => {
+    const snapNow = () => {
+      if (animId) { cancelAnimationFrame(animId); animId = null; }
+      Object.assign(vb, tvb);
+      render();
+    };
+    const animStep = (now) => {
+      animId = null;
+      const dt = Math.min(64, now - (lastT || now));
+      lastT = now;
+      const k = 1 - Math.pow(0.72, dt / 16.7); // exponential ease, ~28%/frame at 60fps
+      vb.x += (tvb.x - vb.x) * k;
+      vb.y += (tvb.y - vb.y) * k;
+      vb.w += (tvb.w - vb.w) * k;
+      vb.h += (tvb.h - vb.h) * k;
+      const eps = tvb.w * 0.001;
+      if (Math.abs(tvb.w - vb.w) < eps && Math.abs(tvb.x - vb.x) < eps && Math.abs(tvb.y - vb.y) < eps) {
+        snapNow();
+      } else {
+        render();
+        animId = requestAnimationFrame(animStep);
+      }
+    };
+    const kick = () => {
+      clampBox(tvb);
+      syncUI();
+      if (rm) { snapNow(); return; }
+      lastT = 0;
+      if (!animId) animId = requestAnimationFrame(animStep);
+    };
+    // direct=true (pinch) tracks the fingers exactly; otherwise ease toward it
+    const zoomAt = (cx, cy, f, direct) => {
       const r = svg.getBoundingClientRect();
-      const px = vb.x + ((cx - r.left) / r.width) * vb.w;
-      const py = vb.y + ((cy - r.top) / r.height) * vb.h;
-      const nw = Math.min(W, Math.max(W / MAXZ, vb.w / f));
-      vb.x = px - ((px - vb.x) / vb.w) * nw;
-      vb.y = py - ((py - vb.y) / vb.h) * (nw * (H / W));
-      vb.w = nw;
-      apply();
+      const base = direct ? vb : tvb;
+      const px = base.x + ((cx - r.left) / r.width) * base.w;
+      const py = base.y + ((cy - r.top) / r.height) * base.h;
+      const nw = Math.min(W, Math.max(W / MAXZ, base.w / f));
+      tvb.x = px - ((px - base.x) / base.w) * nw;
+      tvb.y = py - ((py - base.y) / base.h) * (nw * (H / W));
+      tvb.w = nw;
+      tvb.h = nw * (H / W);
+      if (direct) { clampBox(tvb); syncUI(); snapNow(); }
+      else kick();
     };
     const center = () => {
       const r = svg.getBoundingClientRect();
       return [r.left + r.width / 2, r.top + r.height / 2];
     };
-    $("#zoom-in").addEventListener("click", () => zoomAt(...center(), 1.5));
-    $("#zoom-out").addEventListener("click", () => zoomAt(...center(), 1 / 1.5));
+    $("#zoom-in").addEventListener("click", () => zoomAt(...center(), 1.6));
+    $("#zoom-out").addEventListener("click", () => zoomAt(...center(), 1 / 1.6));
     $("#zoom-reset").addEventListener("click", () => {
-      vb.x = 0; vb.y = 0; vb.w = W; vb.h = H;
-      apply();
+      tvb.x = 0; tvb.y = 0; tvb.w = W; tvb.h = H;
+      kick();
     });
     svg.addEventListener("wheel", (e) => {
       e.preventDefault();
-      zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.3 : 1 / 1.3);
+      // factor follows the actual scroll amount: trackpads glide, wheel
+      // notches step ~1.2x, and successive events compound smoothly
+      let d = e.deltaY;
+      if (e.deltaMode === 1) d *= 20;       // lines -> px
+      else if (e.deltaMode === 2) d *= 120; // pages -> px
+      const f = Math.min(1.6, Math.max(1 / 1.6, Math.exp(-d * 0.0015)));
+      zoomAt(e.clientX, e.clientY, f);
     }, { passive: false });
 
     // drag to pan (when zoomed) + two-finger pinch
@@ -194,19 +238,25 @@
         moved += Math.abs(dx) + Math.abs(dy);
         if (moved > 4) dragging = true;
         const r = svg.getBoundingClientRect();
+        tvb.x -= dx * (tvb.w / r.width);
+        tvb.y -= dy * (tvb.h / r.height);
+        clampBox(tvb);
+        // panning is finger-locked: move the view with the pointer, no lag
         vb.x -= dx * (vb.w / r.width);
         vb.y -= dy * (vb.h / r.height);
-        apply();
+        clampBox(vb);
+        render();
       } else if (pts.size === 2) {
         const [a, b] = [...pts.values()];
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        if (lastDist > 0 && dist > 0) zoomAt(mid.x, mid.y, dist / lastDist);
+        if (lastDist > 0 && dist > 0) zoomAt(mid.x, mid.y, dist / lastDist, true);
         if (lastMid) {
           const r = svg.getBoundingClientRect();
-          vb.x -= (mid.x - lastMid.x) * (vb.w / r.width);
-          vb.y -= (mid.y - lastMid.y) * (vb.h / r.height);
-          apply();
+          tvb.x -= (mid.x - lastMid.x) * (tvb.w / r.width);
+          tvb.y -= (mid.y - lastMid.y) * (tvb.h / r.height);
+          clampBox(tvb);
+          snapNow();
         }
         lastDist = dist;
         lastMid = mid;
@@ -227,6 +277,7 @@
     };
     window.addEventListener("pointerup", endPt);
     window.addEventListener("pointercancel", endPt);
+    render();
     syncUI();
     return { isDragging: () => dragging, clickSuppressed: () => suppressClick };
   })();
